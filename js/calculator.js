@@ -122,6 +122,16 @@ async function handleCalculation(event) {
             displayResults(result);
             updateMapRoute(result);
             showAlert('Ruta calculada exitosamente', 'success');
+
+            // Colapsar automáticamente la sección de parámetros para dar relevancia a los resultados
+            const parametrosCollapse = document.getElementById('parametrosCollapse');
+            if (parametrosCollapse && parametrosCollapse.classList.contains('show')) {
+                const collapseInstance = new bootstrap.Collapse(parametrosCollapse, {
+                    toggle: false
+                });
+                collapseInstance.hide();
+                console.log('📋 Parámetros colapsados automáticamente');
+            }
         } else {
             showAlert(result.error || 'No se pudo calcular la ruta', 'danger');
         }

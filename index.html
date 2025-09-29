@@ -25,7 +25,7 @@
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="#">
                 <i class="fas fa-route me-2"></i>
-                <strong>Calculadora de Rutas - Lite</strong>
+                <strong>GEAM-IT Calculadora de Rutas - Lite</strong>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -36,13 +36,6 @@
                         <a class="nav-link active" href="#">
                             <i class="fas fa-calculator me-1"></i>Calculadora
                         </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <span class="navbar-text">
-                            <i class="fas fa-info-circle me-1"></i>Versión Estática
-                        </span>
                     </li>
                 </ul>
             </div>
@@ -57,14 +50,13 @@
                     <h1 class="display-6 mb-2">
                         <i class="fas fa-route me-3"></i>Calculadora de Rutas de Gasoductos
                     </h1>
-                    <p class="lead mb-0">Sistema de Cálculo de Tarifas de Gas Natural - Colombia</p>
+                    <p class="lead mb-0">Sistema de Cálculo de Tarifas SNT - Colombia</p>
                 </div>
                 <div class="col-md-4 text-end">
                     <div class="text-light">
                         <small>Transportadores:</small><br>
                         <span class="badge bg-secondary me-1">TGI</span>
                         <span class="badge bg-info me-1">PROMIGAS</span>
-                        <span class="badge bg-warning text-dark">PROMIORIENTE</span>
                     </div>
                 </div>
             </div>
@@ -76,61 +68,6 @@
         <div class="row">
             <!-- Panel de Cálculo -->
             <div class="col-lg-4">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-calculator text-primary me-2"></i>Parámetros de Cálculo
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="calculatorForm">
-                            <div class="mb-3">
-                                <label for="origen" class="form-label">
-                                    <i class="fas fa-map-marker-alt text-success me-1"></i>Origen
-                                </label>
-                                <select class="form-select" id="origen" required>
-                                    <option value="">Seleccione origen...</option>
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="destino" class="form-label">
-                                    <i class="fas fa-flag-checkered text-danger me-1"></i>Destino
-                                </label>
-                                <select class="form-select" id="destino" required>
-                                    <option value="">Seleccione destino...</option>
-                                </select>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="porcentaje" class="form-label">
-                                            <i class="fas fa-percentage text-info me-1"></i>Porcentaje
-                                        </label>
-                                        <input type="number" class="form-control" id="porcentaje" value="100" min="1"
-                                            max="100" step="0.1">
-                                        <div class="form-text">% de la capacidad</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="dolar" class="form-label">
-                                            <i class="fas fa-dollar-sign text-warning me-1"></i>TRM
-                                        </label>
-                                        <input type="number" class="form-control" id="dolar" value="4000" min="1000"
-                                            max="10000" step="1">
-                                        <div class="form-text">Tasa de cambio</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary w-100">
-                                <i class="fas fa-calculator me-2"></i>Calcular Ruta
-                            </button>
-                        </form>
-                    </div>
-                </div>
 
                 <!-- Rutas Predefinidas -->
                 <div class="card shadow-sm mb-4">
@@ -158,6 +95,71 @@
                         </select>
                     </div>
                 </div>
+
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0">
+                            <button class="btn btn-link text-decoration-none p-0 text-start w-100" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#parametrosCollapse" aria-expanded="true"
+                                aria-controls="parametrosCollapse">
+                                <i class="fas fa-calculator text-primary me-2"></i>Parámetros de Cálculo
+                                <i class="fas fa-chevron-down float-end mt-1"></i>
+                            </button>
+                        </h5>
+                    </div>
+                    <div class="collapse show" id="parametrosCollapse">
+                        <div class="card-body">
+                            <form id="calculatorForm">
+                                <div class="mb-3">
+                                    <label for="origen" class="form-label">
+                                        <i class="fas fa-map-marker-alt text-success me-1"></i>Origen
+                                    </label>
+                                    <select class="form-select" id="origen" required>
+                                        <option value="">Seleccione origen...</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="destino" class="form-label">
+                                        <i class="fas fa-flag-checkered text-danger me-1"></i>Destino
+                                    </label>
+                                    <select class="form-select" id="destino" required>
+                                        <option value="">Seleccione destino...</option>
+                                    </select>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="porcentaje" class="form-label">
+                                                <i class="fas fa-percentage text-info me-1"></i>Porcentaje
+                                            </label>
+                                            <input type="number" class="form-control" id="porcentaje" value="100"
+                                                min="1" max="100" step="0.1">
+                                            <div class="form-text">% de la capacidad</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="dolar" class="form-label">
+                                                <i class="fas fa-dollar-sign text-warning me-1"></i>TRM
+                                            </label>
+                                            <input type="number" class="form-control" id="dolar" value="4000" min="1000"
+                                                max="10000" step="1">
+                                            <div class="form-text">Tasa de cambio</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-calculator me-2"></i>Calcular Ruta
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Resultados y Mapa -->
@@ -207,7 +209,7 @@
                 <div class="col-md-6">
                     <small>
                         <i class="fas fa-copyright me-1"></i>
-                        2024 Calculadora de Rutas de Gasoductos - Versión Lite
+                        2025 Calculadora de Rutas de Gasoductos - Versión Lite - @flaviofonck
                     </small>
                 </div>
                 <div class="col-md-6 text-end">

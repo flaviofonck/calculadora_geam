@@ -47,6 +47,25 @@ body {
     padding: 1rem 1.25rem;
 }
 
+/* Botón collapse para parámetros */
+.card-header .btn-link {
+    color: inherit !important;
+    text-decoration: none !important;
+    font-weight: 500;
+}
+
+.card-header .btn-link:hover {
+    color: var(--primary-color) !important;
+}
+
+.card-header .btn-link .fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+.card-header .btn-link[aria-expanded="false"] .fa-chevron-down {
+    transform: rotate(-90deg);
+}
+
 .card-title {
     font-weight: 600;
     font-size: 1rem;
