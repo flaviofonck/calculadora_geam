@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Destinos</title>
+</head>
+
+<body>
+    <h1>Debug - Destinos</h1>
+    <select id="origen">
+        <option value="">Seleccione origen...</option>
+        <option value="Sebastopol">Sebastopol</option>
+        <option value="Cartagena">Cartagena</option>
+        <option value="Ballenas_tgi">Ballenas_tgi</option>
+    </select>
+
+    <select id="destino">
+        <option value="">Seleccione destino...</option>
+    </select>
+
+    <div id="debug"></div>
+
+    <script src="js/data.js"></script>
+    <script>
+        document.getElementById('origen').addEventListener('change', function () {
+            const origen = this.value;
+            const debugDiv = document.getElementById('debug');
+            const destinoSelect = document.getElementById('destino');
+
+            console.log('🔍 Origen seleccionado:', origen);
+
+            if (!origen) {
+                destinoSelect.innerHTML = '<option value="">Seleccione destino...</option>';
+                debugDiv.innerHTML = 'Sin origen seleccionado';
+                return;
+            }
+
+            try {
+                const destinations = getDestinationNodes(origen);
+                console.log('🎯 Destinos encontrados:', destinations);
+
+                destinoSelect.innerHTML = '<option value="">Seleccione destino...</option>';
+
+                destinations.forEach(dest => {
+                    const option = document.createElement('option');
+                    option.value = dest;
+                    option.textContent = dest.replace(/_/g, ' ');
+                    destinoSelect.appendChild(option);
+                });
+
+                debugDiv.innerHTML = `<h3>Destinos desde ${origen}:</h3><ul>` +
+                    destinations.map(d => `<li>${d}</li>`).join('') +
+                    `</ul><p>Total: ${destinations.length} destinos</p>`;
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                debugDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+
+</html>

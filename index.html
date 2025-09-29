@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Rutas de Gasoductos - Lite</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="fas fa-route me-2"></i>
+                <strong>Calculadora de Rutas - Lite</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">
+                            <i class="fas fa-calculator me-1"></i>Calculadora
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <span class="navbar-text">
+                            <i class="fas fa-info-circle me-1"></i>Versión Estática
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <div class="hero-section bg-primary text-white py-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="display-6 mb-2">
+                        <i class="fas fa-route me-3"></i>Calculadora de Rutas de Gasoductos
+                    </h1>
+                    <p class="lead mb-0">Sistema de Cálculo de Tarifas de Gas Natural - Colombia</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="text-light">
+                        <small>Transportadores:</small><br>
+                        <span class="badge bg-secondary me-1">TGI</span>
+                        <span class="badge bg-info me-1">PROMIGAS</span>
+                        <span class="badge bg-warning text-dark">PROMIORIENTE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Panel de Cálculo -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-calculator text-primary me-2"></i>Parámetros de Cálculo
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="calculatorForm">
+                            <div class="mb-3">
+                                <label for="origen" class="form-label">
+                                    <i class="fas fa-map-marker-alt text-success me-1"></i>Origen
+                                </label>
+                                <select class="form-select" id="origen" required>
+                                    <option value="">Seleccione origen...</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="destino" class="form-label">
+                                    <i class="fas fa-flag-checkered text-danger me-1"></i>Destino
+                                </label>
+                                <select class="form-select" id="destino" required>
+                                    <option value="">Seleccione destino...</option>
+                                </select>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="porcentaje" class="form-label">
+                                            <i class="fas fa-percentage text-info me-1"></i>Porcentaje
+                                        </label>
+                                        <input type="number" class="form-control" id="porcentaje" value="100" min="1"
+                                            max="100" step="0.1">
+                                        <div class="form-text">% de la capacidad</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="dolar" class="form-label">
+                                            <i class="fas fa-dollar-sign text-warning me-1"></i>TRM
+                                        </label>
+                                        <input type="number" class="form-control" id="dolar" value="4000" min="1000"
+                                            max="10000" step="1">
+                                        <div class="form-text">Tasa de cambio</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-calculator me-2"></i>Calcular Ruta
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Rutas Predefinidas -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-bookmark text-primary me-2"></i>Rutas Predefinidas
+                        </h6>
+                    </div>
+                    <div class="card-body p-2">
+                        <select class="form-select" id="predefinedRoutes" onchange="handlePredefinedRoute()">
+                            <option value="">Seleccione una ruta predefinida...</option>
+                            <option value="La Mami|Cartagena">La Mami → Cartagena</option>
+                            <option value="Cartagena|Vasconia">Cartagena → Vasconia</option>
+                            <option value="Cartagena|Sebastopol">Cartagena → Sebastopol</option>
+                            <option value="La Mami|Barranquilla">La Mami → Barranquilla</option>
+                            <option value="Cusiana|Transmetano">Cusiana → Transmetano</option>
+                            <option value="Cusiana|Porvenir">Cusiana → Porvenir</option>
+                            <option value="Sebastopol|Medellin">Sebastopol → Medellín</option>
+                            <option value="Barrancabermeja|Bucaramanga">Barrancabermeja → Bucaramanga (Promioriente)
+                            </option>
+                            <option value="Ballenas_tgi|Barranquilla">Ballenas_tgi → Barranquilla</option>
+                            <option value="Sebastopol|Neiva">Sebastopol → Neiva</option>
+                            <option value="Ballenas_prom|La Mami">Ballenas_prom → La Mami</option>
+                            <option value="Sincelejo|Jobo">Sincelejo → Jobo</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultados y Mapa -->
+            <div class="col-lg-8">
+                <!-- Resultados -->
+                <div class="card shadow-sm mb-4" id="resultsCard" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-check-circle me-2"></i>Resultados del Cálculo
+                        </h6>
+                    </div>
+                    <div class="card-body" id="resultsContent">
+                        <!-- Los resultados se insertarán aquí -->
+                    </div>
+                </div>
+
+                <!-- Mapa -->
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-map text-primary me-2"></i>Red de Gasoductos de Colombia
+                        </h6>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" onclick="toggleLayer('tgi')">
+                                <span class="legend-color bg-secondary"></span> TGI
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="toggleLayer('promigas')">
+                                <span class="legend-color bg-info"></span> PROMIGAS
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" onclick="toggleLayer('promioriente')">
+                                <span class="legend-color bg-warning"></span> PROMIORIENTE
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="map" style="height: 500px; width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-3 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <small>
+                        <i class="fas fa-copyright me-1"></i>
+                        2024 Calculadora de Rutas de Gasoductos - Versión Lite
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        Sistema estático para servidores web
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mb-0">Calculando ruta...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/map.js"></script>
+</body>
+
+</html>
