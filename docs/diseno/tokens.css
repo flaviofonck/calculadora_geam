@@ -1,0 +1,139 @@
+/* ============================================================
+   Calculadora de Rutas SNT — tokens de diseño
+   Dirección: instrumental sobria.
+   Estos valores son la fuente de verdad. Cópialos tal cual:
+   no los redondees a una rejilla de 4/8 px ni los sustituyas
+   por defaults de Bootstrap.
+   ============================================================ */
+
+:root {
+
+  /* --- Superficies y filetes -------------------------------
+     Paneles planos separados por filetes de 1 px.
+     Nada de sombras de tarjeta ni de translateY en hover.     */
+  --sup-lienzo:      #e9edf2;  /* fondo de la ventana            */
+  --sup-panel:       #ffffff;  /* panel principal                */
+  --sup-panel-2:     #f4f7fa;  /* panel secundario, cabeceras    */
+  --sup-panel-3:     #f7f9fb;  /* fondo del mapa                 */
+  --sup-sutil:       #fafbfd;  /* fila agrupada                  */
+  --sup-activa:      #f0f6fd;  /* fila enfocada (azul PROMIGAS)  */
+  --sup-marcada:     #f2f5f9;  /* item seleccionado en lista     */
+  --sup-inversa:     #0d141c;  /* barra superior, botón primario */
+
+  --filete:          #dde3ea;  /* separador entre paneles        */
+  --filete-suave:    #eef2f6;  /* separador entre filas          */
+  --filete-control:  #c6cfda;  /* borde de campos y botones      */
+  --filete-inverso:  #2a3644;  /* borde sobre superficie oscura  */
+
+  /* --- Texto ------------------------------------------------
+     Relaciones de contraste verificadas contra #ffffff.        */
+  --tinta:           #0d141c;  /* 18,52:1  título y cifras       */
+  --tinta-2:         #48566a;  /*  7,46:1  texto de apoyo        */
+  --tinta-3:         #64707d;  /*  5,05:1  etiquetas y unidades  */
+  --tinta-inversa:   #eef2f7;  /* sobre --sup-inversa            */
+  --tinta-inversa-2: #a6b3c2;  /*  8,69:1 sobre #0d141c          */
+  --tinta-inversa-3: #8fa5bc;  /*  7,30:1 sobre #0d141c          */
+
+  /* No bajes de --tinta-3 para texto. #7b8798 da 3,65:1 y
+     #a2adba da 2,28:1: los dos incumplen AA en texto pequeño. */
+
+  /* --- Transportadores -------------------------------------
+     Identidad, no decoración. Un color por transportador y
+     nada más usa ese color.                                    */
+  --promigas:        #0a6ed1;  /* 5,04:1 — sustituye #0066ff    */
+  --tgi:             #5a6b7d;  /* 5,48:1 — sustituye #808080    */
+  --promioriente:    #b06a00;  /* 4,28:1 — sustituye #ffff00,
+                                  que daba 1,07:1 y era ilegible.
+                                  Solo línea e indicador; nunca
+                                  texto pequeño sobre blanco.   */
+  --conexion:        #0f8a5f;  /* 4,36:1 — conexión especial    */
+
+  /* Variantes claras para chips y fondos de estado */
+  --promigas-tenue:  #eaf2fb;
+  --conexion-tenue:  #e6f4ee;
+
+  /* Sobre la barra oscura, la leyenda usa versiones aclaradas */
+  --promigas-inv:     #4d8fd6;
+  --tgi-inv:          #94a3b4;
+  --promioriente-inv: #d99b3a;
+
+  /* --- Mapa -------------------------------------------------
+     La red que no participa en el trayecto baja al 25 %.       */
+  --red-base:        #cdd6e0;  /* tramo TGI en reposo           */
+  --red-base-prom:   #bcd2e8;  /* tramo PROMIGAS en reposo      */
+  --red-base-pori:   #e0cba6;  /* tramo PROMIORIENTE en reposo  */
+  --red-nodo:        #c6cfda;  /* nodo que no es de la ruta     */
+
+  /* --- Tipografía ------------------------------------------
+     Dos familias. Toda cifra va en la monoespaciada con
+     tabular-nums, para que las columnas del desglose alineen. */
+  --tipo-texto: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --tipo-cifra: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+
+  --txt-cifra-xl:  32px;  /* total COP y USD, peso 600, -0.02em */
+  --txt-cifra-lg:  24px;  /* total en móvil, peso 600           */
+  --txt-titulo:    21px;  /* «Cartagena → Sebastopol», peso 600 */
+  --txt-dato:      15px;  /* valor de un campo, peso 500/600    */
+  --txt-control:   14px;  /* texto dentro de un campo o botón   */
+  --txt-tabla:   12.5px;  /* fila del desglose                  */
+  --txt-apoyo:   11.5px;  /* pie de dato, leyenda               */
+  --txt-menor:     11px;  /* etiqueta de campo                  */
+  --txt-micro:     10px;  /* rótulo en versal, 0.09em de trama  */
+
+  /* Los rótulos de sección van en versales, peso 400,
+     letter-spacing 0.1em, color --tinta-3. */
+
+  /* --- Alturas de control ----------------------------------
+     En móvil, ningún objetivo táctil baja de 44 px.            */
+  --alto-barra:      56px;  /* barra superior                   */
+  --alto-cabecera:   46px;  /* cabecera de panel                */
+  --alto-boton:      44px;  /* acción primaria                  */
+  --alto-campo:      40px;  /* select de origen y destino       */
+  --alto-campo-sec:  38px;  /* campo de TRM                     */
+  --alto-boton-sec:  36px;  /* acción secundaria                */
+  --alto-boton-min:  32px;  /* botón de exportar                */
+  --alto-tactil:     44px;  /* mínimo en móvil                  */
+  --alto-campo-movil: 48px;  /* campo del formulario en móvil:
+                                por encima del mínimo táctil,
+                                porque es el control que más se
+                                usa y se toca en movimiento.     */
+
+  /* --- Radios ----------------------------------------------- */
+  --radio-panel:      6px;
+  --radio-control:    5px;
+  --radio-chip:       4px;
+  --radio-micro:      3px;
+  --radio-hoja:      14px;  /* hoja inferior del móvil          */
+
+  /* --- Rejilla de escritorio (1440 px) ---------------------- */
+  --col-riel:       328px;  /* parámetros, izquierda            */
+  --col-mapa:       552px;  /* mapa, derecha, siempre visible   */
+  /* La columna del medio (resultados) es minmax(0, 1fr).       */
+
+  /* --- Estado inicial, antes del primer cálculo -------------
+     Los dos únicos valores que NO son texto y por eso quedan
+     fuera de la regla de contraste de arriba: uno es el guion
+     de un dato que todavía no existe y el otro es una barra de
+     marcador de posición. Nunca se usan para texto real; si
+     algo se puede leer, va con --tinta-3 o mejor.             */
+  --tinta-fantasma:  #c6cfda;  /* guion de dato ausente        */
+  --sup-fantasma:    #eef2f6;  /* barra de marcador de posición*/
+  --sup-fantasma-2:  #e3e8ee;  /* marca de tramo sin color     */
+
+  /* --- Movimiento ------------------------------------------- */
+  --dur-trazo:      1000ms;  /* dibujo de un tramo              */
+  --dur-flujo:      1400ms;  /* ciclo de los guiones            */
+  --dur-encuadre:    600ms;  /* flyToBounds                     */
+  --retardo-tramo:   160ms;  /* entre un tramo y el siguiente   */
+  --curva: cubic-bezier(.4, 0, .2, 1);
+}
+
+/* Toda animación de esta interfaz se detiene aquí. Sin esto la
+   reingeniería no está terminada. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

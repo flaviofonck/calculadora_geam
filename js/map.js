@@ -5,11 +5,15 @@ let map = null;
 let layerGroups = {};
 let routeLayer = null;
 let markersLayer = null;
+let routeSegmentElements = new Map();
 
 // Inicialización del mapa
-document.addEventListener('DOMContentLoaded', function () {
+window.addEventListener('geam-data-loaded', function () {
     initializeMap();
 });
+if (window.NETWORK_DATA) {
+    initializeMap();
+}
 
 // Inicializar mapa
 function initializeMap() {
@@ -17,10 +21,12 @@ function initializeMap() {
 
     // Crear mapa centrado en Colombia
     map = L.map('map').setView([4.5709, -74.2973], 6);
+    window.map = map;
+    window.__GEAM_MAP__ = map;
 
-    // Añadir capa base de OpenStreetMap
+    // Añadir capa base OpenStreetMap sin clave
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     // Inicializar capas por transportador
@@ -37,25 +43,57 @@ function initializeLayers() {
     layerGroups = {
         'tgi': L.layerGroup().addTo(map),
         'promigas': L.layerGroup().addTo(map),
-        'promioriente': L.layerGroup().addTo(map)
+        'promioriente': L.layerGroup().addTo(map),
+        'conexión especial': L.layerGroup().addTo(map)
     };
 
     // Capa para la ruta actual
     routeLayer = L.layerGroup().addTo(map);
     markersLayer = L.layerGroup().addTo(map);
+    window.markersLayer = markersLayer;
+    window.layerGroups = layerGroups;
+}
+
+function routeKey(from, to) {
+    return `${from}|${to}`;
+}
+
+function clearRouteFocus() {
+    routeSegmentElements.forEach(segment => segment.element?.classList.remove('ruta__tramo--enfocado'));
+    document.querySelectorAll('.desglose__fila[aria-current="true"]').forEach(row => row.removeAttribute('aria-current'));
+}
+
+function focusRouteSegment(from, to, source) {
+    clearRouteFocus();
+    const segment = routeSegmentElements.get(routeKey(from, to));
+    const row = [...document.querySelectorAll('.desglose__fila[data-route-from]')].find(item =>
+        item.dataset.routeFrom === from && item.dataset.routeTo === to);
+    if (segment) {
+        segment.element?.classList.add('ruta__tramo--enfocado');
+        segment.layer.openTooltip();
+    }
+    if (row && source === 'map') row.setAttribute('aria-current', 'true');
+    if (row && source === 'row') row.setAttribute('aria-current', 'true');
+}
+
+function bindRouteInteractions() {
+    document.querySelectorAll('.desglose__fila[data-route-from]').forEach(row => {
+        row.addEventListener('pointerenter', () => focusRouteSegment(row.dataset.routeFrom, row.dataset.routeTo, 'row'));
+        row.addEventListener('focusin', () => focusRouteSegment(row.dataset.routeFrom, row.dataset.routeTo, 'row'));
+        row.addEventListener('pointerleave', clearRouteFocus);
+        row.addEventListener('focusout', event => {
+            if (!row.contains(event.relatedTarget)) clearRouteFocus();
+        });
+    });
 }
 
 // Cargar red de gasoductos en el mapa
 function loadNetworkOnMap() {
     const nodePositions = {};
 
-    // Recopilar posiciones de todos los nodos
-    NETWORK_DATA.forEach(item => {
-        if (item.Origen_Lat && item.Origen_Long) {
-            nodePositions[item.Origen] = [item.Origen_Lat, item.Origen_Long];
-        }
-        if (item.Destino_Lat && item.Destino_Long) {
-            nodePositions[item.Destino] = [item.Destino_Lat, item.Destino_Long];
+    (window.TOPOLOGIA_NODOS || []).forEach(function (n) {
+        if (n.lat != null && n.lon != null) {
+            nodePositions[n.nombre] = [n.lat, n.lon];
         }
     });
 
@@ -98,37 +136,50 @@ function loadNetworkOnMap() {
             const line = L.polyline(lineCoordinates, {
                 color: color,
                 weight: 3,
-                opacity: 0.7
+                opacity: 1,
+                className: 'red--secundaria'
             });
 
-            // Popup con información
+            // Popup con información — costo bajo demanda
             const hasIntermediatePoints = intermediatePoints && intermediatePoints.length > 0;
-            const totalCost = (Number(item.Fijos || 0) + Number(item.Variables || 0) + Number(item.AOM || 0));
+            const tramoId = item.id;
 
-            line.bindPopup(`
-                <div class="popup-content">
-                    <h6 class="mb-2">
-                        ${item.Origen} → ${item.Destino}
-                        ${hasIntermediatePoints ? '<i class="fas fa-bezier-curve text-success ms-1" title="Ruta optimizada"></i>' : ''}
-                    </h6>
-                    <p class="mb-1"><strong>Transportador:</strong> 
-                        <span class="badge" style="background-color: ${color}; color: ${item.Transportador === 'PROMIORIENTE' ? 'black' : 'white'};">
-                            ${item.Transportador}
-                        </span>
-                    </p>
-                    <div class="row g-1">
-                        <div class="col-4"><small><strong>Fijos:</strong><br>$${item.Fijos?.toLocaleString('es-CO', { maximumFractionDigits: 2 }) || '0'}</small></div>
-                        <div class="col-4"><small><strong>Variables:</strong><br>$${item.Variables?.toLocaleString('es-CO', { maximumFractionDigits: 2 }) || '0'}</small></div>
-                        <div class="col-4"><small><strong>AOM:</strong><br>$${item.AOM?.toLocaleString('es-CO', { maximumFractionDigits: 2 }) || '0'}</small></div>
-                    </div>
-                    <hr class="my-2">
-                    <p class="mb-0 text-center"><strong>Total Base:</strong> $${totalCost.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</p>
-                </div>
-            `);
+            const popupContent = document.createElement('div');
+            popupContent.className = 'popup-content';
+            popupContent.innerHTML = `
+                <h6 class="mb-2">
+                    ${item.Origen} → ${item.Destino}
+                    ${hasIntermediatePoints ? '<i class="fas fa-bezier-curve text-success ms-1" title="Ruta optimizada"></i>' : ''}
+                </h6>
+                <p class="mb-1"><strong>Transportador:</strong>
+                    <span class="badge" style="background-color: ${color}; color: ${item.Transportador === 'PROMIORIENTE' ? 'black' : 'white'};">
+                        ${item.Transportador}
+                    </span>
+                </p>
+                <p class="mb-0 text-center"><strong>Costo:</strong> <span class="tramo-costo">Cargando…</span></p>
+            `;
+
+            line.bindPopup(popupContent);
+
+            line.on('popupopen', function () {
+                var costoEl = popupContent.querySelector('.tramo-costo');
+                fetch(window.API_BASE_URL + '/tramos/' + tramoId + '/costo')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        costoEl.textContent = '$' + Number(data.costo).toLocaleString('es-CO', { maximumFractionDigits: 2 });
+                    })
+                    .catch(function () {
+                        costoEl.textContent = 'No disponible';
+                    });
+            });
 
             // Añadir a la capa correspondiente
             if (layerGroups[transportador]) {
                 layerGroups[transportador].addLayer(line);
+                const lineElement = line.getElement();
+                lineElement?.classList.add('red--secundaria');
+                lineElement?.setAttribute('data-network-segment', 'true');
+                lineElement?.setAttribute('data-route-segment', 'false');
             }
         }
     });
@@ -242,77 +293,77 @@ function updateMapRoute(routeResult) {
 
     // Limpiar ruta anterior
     routeLayer.clearLayers();
+    routeSegmentElements.clear();
+    clearRouteFocus();
 
     // Recopilar posiciones de nodos
     const nodePositions = {};
-    NETWORK_DATA.forEach(item => {
-        if (item.Origen_Lat && item.Origen_Long) {
-            nodePositions[item.Origen] = [item.Origen_Lat, item.Origen_Long];
-        }
-        if (item.Destino_Lat && item.Destino_Long) {
-            nodePositions[item.Destino] = [item.Destino_Lat, item.Destino_Long];
+    (window.TOPOLOGIA_NODOS || []).forEach(function (n) {
+        if (n.lat != null && n.lon != null) {
+            nodePositions[n.nombre] = [n.lat, n.lon];
         }
     });
 
-    // Crear línea de ruta con puntos intermedios
     const routeCoordinates = [];
 
-    // Procesar cada segmento de la ruta
+    // Un tramo calculado conserva su geometría y transportador propios.
     for (let i = 0; i < routeResult.path.length - 1; i++) {
         const origen = routeResult.path[i];
         const destino = routeResult.path[i + 1];
-
-        // Agregar punto de origen
-        if (nodePositions[origen]) {
-            routeCoordinates.push(nodePositions[origen]);
-        }
-
-        // Buscar puntos intermedios para este segmento
+        const item = NETWORK_DATA.find(segment =>
+            (segment.Origen === origen && segment.Destino === destino) ||
+            (segment.Origen === destino && segment.Destino === origen));
         const segmentKey1 = `${origen}-${destino}`;
-        const segmentKey2 = `${destino}-${origen}`; // Intentar en ambas direcciones
-
+        const segmentKey2 = `${destino}-${origen}`;
         let intermediatePoints = null;
+
         if (INTERMEDIATE_NODES && INTERMEDIATE_NODES[segmentKey1]) {
             intermediatePoints = INTERMEDIATE_NODES[segmentKey1];
         } else if (INTERMEDIATE_NODES && INTERMEDIATE_NODES[segmentKey2]) {
-            // Si está en dirección inversa, invertir los puntos
             intermediatePoints = [...INTERMEDIATE_NODES[segmentKey2]].reverse();
         }
 
-        // Agregar puntos intermedios si existen
+        const coordinates = [nodePositions[origen]];
         if (intermediatePoints) {
-            console.log(`🗺️ Usando puntos intermedios para ${origen} → ${destino}:`, intermediatePoints.length);
-            intermediatePoints.forEach(point => {
-                routeCoordinates.push([point.lat, point.lon]);
-            });
+            intermediatePoints.forEach(point => coordinates.push([point.lat, point.lon]));
         }
-    }
+        coordinates.push(nodePositions[destino]);
+        if (!item || coordinates.some(point => !point)) continue;
+        routeCoordinates.push(...coordinates);
 
-    // Agregar el último nodo de destino
-    const lastNode = routeResult.path[routeResult.path.length - 1];
-    if (nodePositions[lastNode]) {
-        routeCoordinates.push(nodePositions[lastNode]);
-    }
-
-    if (routeCoordinates.length > 1) {
-        // Línea principal de la ruta con puntos intermedios
-        const routeLine = L.polyline(routeCoordinates, {
-            color: '#ff0000',
-            weight: 5,
+        const color = TRANSPORTADOR_COLORS[item.Transportador] || '#666666';
+        const routeLine = L.polyline(coordinates, {
+            color,
+            weight: 4,
             opacity: 0.8,
-            dashArray: '10, 5'
+            className: 'ruta__tramo'
+        });
+        const flowLine = L.polyline(coordinates, {
+            color: '#ffffff',
+            weight: 2,
+            opacity: 0.85,
+            className: 'ruta__flujo'
         });
 
-        routeLine.bindPopup(`
-            <div class="popup-content">
-                <h6 class="mb-2">Ruta Calculada</h6>
-                <p class="mb-1"><strong>${routeResult.origen} → ${routeResult.destino}</strong></p>
-                <p class="mb-1">Segmentos: ${routeResult.estadisticas.segmentos}</p>
-                <p class="mb-0">Total: $${routeResult.totales.cop.toLocaleString('es-CO', { maximumFractionDigits: 2 })} COP</p>
-            </div>
-        `);
-
         routeLayer.addLayer(routeLine);
+        routeLayer.addLayer(flowLine);
+        const routeLineElement = routeLine.getElement();
+        const detail = routeResult.detalles.find(item => item.Tramo === `${origen} - ${destino}` || item.Tramo === `${destino} - ${origen}`);
+        routeLine.bindTooltip(`${origen} → ${destino}: ${formatRouteValue(detail?.['Total Tramo'])}`, { sticky: true });
+        routeSegmentElements.set(routeKey(origen, destino), { layer: routeLine, element: routeLineElement });
+        routeLine.on('mouseover', () => focusRouteSegment(origen, destino, 'map'));
+        routeLine.on('mouseout', clearRouteFocus);
+        routeLineElement?.setAttribute('data-network-segment', 'true');
+        routeLineElement?.setAttribute('data-route-segment', 'true');
+        routeLineElement?.setAttribute('data-route-from', origen);
+        routeLineElement?.setAttribute('data-route-to', destino);
+        routeLineElement?.setAttribute('pathLength', '1');
+        routeLineElement?.style.setProperty('--ruta-delay', `${i * 160}ms`);
+    }
+
+    bindRouteInteractions();
+
+    if (routeCoordinates.length > 1) {
 
         // Marcadores de origen y destino
         const origenPos = nodePositions[routeResult.origen];
@@ -346,8 +397,16 @@ function updateMapRoute(routeResult) {
 
         // Ajustar vista del mapa a la ruta
         const bounds = L.latLngBounds(routeCoordinates);
-        map.fitBounds(bounds, { padding: [20, 20] });
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            map.flyToBounds(bounds, { duration: 0.6, padding: [20, 20] });
+        } else {
+            map.fitBounds(bounds, { padding: [20, 20] });
+        }
     }
+}
+
+function formatRouteValue(value) {
+    return value == null ? 'Valor no disponible' : '$' + Number(value).toLocaleString('es-CO', { maximumFractionDigits: 2 });
 }
 
 // Crear icono personalizado

@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Referencia de diseño — Calculadora de Rutas SNT</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+/* ============================================================
+   Esta página es la REFERENCIA de la reingeniería, no la app.
+   Ábrela en el navegador junto a index.html y copia de aquí:
+   estructura, clases, medidas y estados. Los valores vienen de
+   tokens.css; no los redondees ni los sustituyas por defaults
+   de Bootstrap.
+
+   Lo que NO hay que copiar de aquí: el fondo del mapa. Aquí la
+   red va sobre una retícula de puntos porque esta página no
+   carga teselas. En la app el mapa sigue siendo Leaflet, con
+   teselas CARTO Positron; lo que se copia es la CAPA de la
+   ruta que va encima.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--sup-lienzo);
+  color: var(--tinta);
+  font-family: var(--tipo-texto);
+  -webkit-font-smoothing: antialiased;
+}
+.cifra {
+  font-family: var(--tipo-cifra);
+  font-variant-numeric: tabular-nums;
+}
+.rotulo {
+  font-size: var(--txt-micro);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--tinta-3);
+}
+
+/* --- andamio de esta página, no de la app ------------------- */
+.doc { max-width: 1500px; margin: 0 auto; padding: 32px 24px 80px; }
+.doc h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+.doc p.intro { font-size: 13px; color: var(--tinta-2); line-height: 1.6; max-width: 76ch; margin: 0 0 32px; }
+.doc h2 { font-size: 13px; font-weight: 600; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--filete); }
+.doc .nota { font-size: 12px; color: var(--tinta-2); line-height: 1.6; max-width: 76ch; margin: 0 0 16px; }
+.marco { border: 1px solid var(--filete); border-radius: var(--radio-panel); overflow: hidden; background: var(--sup-panel); }
+
+/* ============================================================
+   1. BARRA SUPERIOR
+   ============================================================ */
+.barra {
+  display: flex; align-items: center; gap: 20px;
+  height: var(--alto-barra); padding: 0 24px;
+  background: var(--sup-inversa); color: var(--tinta-inversa);
+  flex-shrink: 0;
+}
+.barra__marca { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.barra__div { width: 1px; height: 16px; background: #33404f; }
+.barra__sub { font-size: 13px; font-weight: 400; color: var(--tinta-inversa-2); }
+.barra__hueco { flex-grow: 1; }
+.leyenda { display: flex; align-items: center; gap: 16px; font-size: var(--txt-menor); color: var(--tinta-inversa-2); }
+.leyenda__item { display: flex; align-items: center; gap: 6px; }
+.leyenda__linea { width: 8px; height: 2px; }
+.trm-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px; border: 1px solid var(--filete-inverso); border-radius: var(--radio-chip);
+}
+
+/* ============================================================
+   2. REJILLA DE ESCRITORIO
+   El mapa YA NO va debajo de los resultados. Va en columna
+   propia, siempre visible. Este es el arreglo principal.
+   ============================================================ */
+.app { display: flex; flex-direction: column; height: 980px; }
+.app__cuerpo {
+  display: grid;
+  grid-template-columns: var(--col-riel) minmax(0, 1fr) var(--col-mapa);
+  flex-grow: 1; min-height: 0;
+}
+.riel  { display: flex; flex-direction: column; background: var(--sup-panel);   border-right: 1px solid var(--filete); min-height: 0; }
+.centro{ display: flex; flex-direction: column; background: var(--sup-panel-2); border-right: 1px solid var(--filete); min-height: 0; overflow: hidden; }
+.mapa  { display: flex; flex-direction: column; background: var(--sup-panel); min-height: 0; }
+.separador { height: 1px; background: var(--filete); margin: 0 22px; }
+
+/* ============================================================
+   3. CAMPOS Y BOTONES
+   ============================================================ */
+.campo { display: block; }
+.campo__etiqueta { display: block; font-size: var(--txt-menor); color: var(--tinta-2); margin-bottom: 5px; }
+.campo__caja {
+  display: flex; align-items: center; gap: 8px;
+  height: var(--alto-campo); padding: 0 12px;
+  border: 1px solid var(--filete-control); border-radius: var(--radio-control);
+  background: var(--sup-panel);
+}
+.campo__caja:hover { border-color: var(--tinta-3); }
+.campo__caja:focus-within { border-color: var(--tinta); box-shadow: 0 0 0 3px rgba(13,20,28,.12); outline: none; }
+.campo__valor { font-size: var(--txt-control); font-weight: 500; flex-grow: 1; }
+.punto-origen { width: 7px; height: 7px; border-radius: 50%; background: var(--tinta); flex-shrink: 0; }
+
+.invertir {
+  position: absolute; right: -10px; top: 52px;
+  width: 28px; height: 28px; padding: 0;
+  border: 1px solid var(--filete-control); border-radius: 50%;
+  background: var(--sup-panel); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.invertir:hover { border-color: var(--tinta); }
+
+.boton {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; height: var(--alto-boton);
+  border: none; border-radius: var(--radio-control);
+  background: var(--sup-inversa); color: #ffffff;
+  font-family: inherit; font-size: var(--txt-control); font-weight: 500; cursor: pointer;
+}
+.boton:hover  { background: #1a2532; }
+.boton:active { background: #060a0f; }
+.boton:focus-visible { outline: 2px solid var(--tinta); outline-offset: 2px; }
+/* La acción primaria es tinta, no azul: el azul es de PROMIGAS. */
+
+.boton--sec {
+  height: var(--alto-boton-sec);
+  border: 1px solid var(--filete-control); background: var(--sup-panel);
+  color: var(--tinta-2); font-size: 12px;
+}
+.boton--sec:hover { border-color: var(--tinta-3); background: var(--sup-panel-2); }
+
+.boton--min {
+  width: auto; height: var(--alto-boton-min); padding: 0 11px;
+  border: 1px solid var(--filete-control); border-radius: var(--radio-chip);
+  background: var(--sup-panel); color: var(--tinta-2); font-size: var(--txt-apoyo);
+}
+
+/* Deslizador de capacidad: sustituye al input numérico actual. */
+.deslizador { position: relative; height: 4px; border-radius: 2px; background: #e3e8ee; }
+.deslizador__relleno { position: absolute; left: 0; top: 0; height: 4px; border-radius: 2px; background: var(--tinta); }
+.deslizador__tirador { position: absolute; top: -4px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid var(--tinta); }
+
+/* ============================================================
+   4. TOTALES Y REPARTO
+   Los dos totales en una franja compacta, no en dos tarjetas
+   grandes. Cifras en monoespaciada.
+   ============================================================ */
+.totales {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+  background: var(--filete); border: 1px solid var(--filete);
+  border-radius: var(--radio-panel); overflow: hidden;
+}
+.total { background: var(--sup-panel); padding: 16px 18px; }
+.total__cifra { font-size: var(--txt-cifra-xl); font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+.total__cifra--sec { color: var(--tinta-2); }
+.total__pie { font-size: var(--txt-menor); color: var(--tinta-3); margin-top: 6px; }
+
+.reparto { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: #e3e8ee; }
+.reparto__llave { display: flex; gap: 22px; margin-top: 9px; }
+.reparto__item { display: flex; align-items: center; gap: 7px; font-size: var(--txt-apoyo); color: var(--tinta-2); }
+.reparto__color { width: 7px; height: 7px; border-radius: 1px; }
+
+/* ============================================================
+   5. DESGLOSE
+   Agrupado por transportador. La fila enfocada se sincroniza
+   con el tramo del mapa en los dos sentidos, con cursor Y con
+   foco de teclado.
+   ============================================================ */
+.desglose { border: 1px solid var(--filete); border-radius: var(--radio-panel); background: var(--sup-panel); overflow: hidden; }
+.desglose__fila,
+.desglose__cabecera {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px 78px 82px;
+  align-items: center; padding: 11px 14px;
+}
+.desglose__cabecera {
+  padding: 9px 14px; background: var(--sup-panel-2); border-bottom: 1px solid var(--filete);
+  font-size: var(--txt-micro); letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-3);
+}
+.desglose__fila { border-bottom: 1px solid var(--filete-suave); }
+.desglose__fila:last-child { border-bottom: none; }
+.desglose__fila:hover,
+.desglose__fila:focus-within,
+.desglose__fila[aria-current="true"] {
+  background: var(--sup-activa);
+  box-shadow: inset 3px 0 0 var(--promigas);
+}
+.desglose__fila--agrupada { background: var(--sup-sutil); }
+.desglose__tramo { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.desglose__tramo span:not(.desglose__marca):not(.chip) {
+  font-size: var(--txt-tabla);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.desglose__marca { width: 3px; height: 15px; border-radius: 1px; flex-shrink: 0; }
+.desglose__num { font-size: 12px; text-align: right; color: var(--tinta-2); }
+.desglose__num--total { font-size: var(--txt-tabla); color: var(--tinta); font-weight: 500; }
+.chip {
+  font-size: 9.5px; letter-spacing: .05em; padding: 2px 5px;
+  border-radius: 2px; flex-shrink: 0;
+}
+.chip--conexion { background: var(--conexion-tenue); color: var(--conexion); }
+
+/* ============================================================
+   6. MAPA — capa de la ruta
+   ESTE es el bloque que se copia a js/map.js y a la hoja de
+   estilos. El fondo de esta página es una retícula; en la app
+   debajo van las teselas CARTO Positron.
+   ============================================================ */
+.mapa__lienzo { flex-grow: 1; position: relative; background: var(--sup-panel-3); min-height: 0; }
+.mapa__cabecera {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 20px; height: var(--alto-cabecera);
+  border-bottom: 1px solid var(--filete); flex-shrink: 0;
+}
+.mapa__pie {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px; height: 38px; border-top: 1px solid var(--filete);
+  flex-shrink: 0; font-size: 10.5px; color: var(--tinta-3);
+}
+.escala { position: absolute; left: 16px; bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.escala__barra { width: 52px; height: 1px; background: var(--tinta-3); position: relative; }
+.escala__barra::before,
+.escala__barra::after { content: ""; position: absolute; top: -3px; width: 1px; height: 7px; background: var(--tinta-3); }
+.escala__barra::before { left: 0; }
+.escala__barra::after  { right: 0; }
+
+/* 6.a — Dibujo progresivo de cada tramo.
+   pathLength="1" normaliza la longitud, así el retardo entre
+   tramos es parejo aunque midan distinto. */
+@keyframes trazo { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.ruta__tramo {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: trazo var(--dur-trazo) var(--curva) forwards;
+}
+/* Los retardos son n * --retardo-tramo, en el orden del trayecto. */
+.ruta__tramo:nth-child(1) { animation-delay: 0ms; }
+.ruta__tramo:nth-child(2) { animation-delay: 160ms; }
+.ruta__tramo:nth-child(3) { animation-delay: 320ms; }
+.ruta__tramo:nth-child(4) { animation-delay: 480ms; }
+.ruta__tramo:nth-child(5) { animation-delay: 640ms; }
+.ruta__tramo:nth-child(6) { animation-delay: 800ms; }
+
+/* 6.b — Flujo continuo: guiones blancos avanzando en el sentido
+   del gas, encima del tramo ya dibujado. */
+@keyframes flujo { to { stroke-dashoffset: -48; } }
+.ruta__flujo {
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+  opacity: .85;
+  stroke-dasharray: 9 15;
+  animation: flujo var(--dur-flujo) linear infinite;
+}
+/* El interruptor de la barra del mapa pone animation-play-state
+   en paused sobre este selector. prefers-reduced-motion lo para
+   también, desde tokens.css. */
+[data-flujo="off"] .ruta__flujo { animation-play-state: paused; }
+
+/* 6.c — Halo del nodo de origen. */
+@keyframes pulso {
+  0%, 100% { opacity: .35; transform: scale(1); }
+  50%      { opacity: 0;   transform: scale(2.6); }
+}
+.nodo__halo { transform-origin: center; transform-box: fill-box; animation: pulso 2.4s ease-out infinite; }
+
+/* 6.d — Tramo enfocado: engrosa y saca su etiqueta.
+   Se dispara desde la fila del desglose y desde el propio mapa. */
+.ruta__tramo--enfocado { stroke-width: 5.5; }
+.ruta--atenuada .ruta__tramo:not(.ruta__tramo--enfocado) { stroke: #c3d6ea; }
+
+/* 6.e — La red que no participa en el trayecto baja al 25 %. */
+.red--secundaria { opacity: .25; }
+
+/* ============================================================
+   7. MÓVIL 390 × 844
+   El mapa arriba como protagonista y los resultados en una hoja
+   inferior arrastrable. Ningún objetivo táctil por debajo de
+   --alto-tactil (44 px).
+   NO se dibuja barra de estado ni teclado: el sistema los pinta
+   encima y un duplicado pintado se ve doble.
+   ============================================================ */
+.movil {
+  display: flex; flex-direction: column;
+  width: 390px; height: 844px;
+  background: var(--sup-panel-2); overflow: hidden;
+}
+
+/* 7.a — barra superior: el trayecto vive aquí, no en un h1 aparte */
+.movil__barra {
+  display: flex; align-items: center; gap: 12px;
+  height: var(--alto-barra); padding: 0 16px;
+  background: var(--sup-inversa); color: var(--tinta-inversa);
+  flex-shrink: 0;
+}
+.movil__barra-titulo {
+  font-size: var(--txt-control); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.movil__barra-meta { font-size: var(--txt-menor); color: var(--tinta-inversa-3); }
+/* Los iconos de la barra son de 44 px con margen negativo, para
+   que el objetivo táctil sea grande sin desalinear el icono. */
+.movil__icono {
+  display: flex; align-items: center; justify-content: center;
+  width: var(--alto-tactil); height: var(--alto-tactil);
+  padding: 0; border: none; background: none; cursor: pointer;
+  color: inherit;
+}
+
+/* 7.b — mapa: 296 px de alto, recortado (slice) sobre el trayecto.
+   Misma capa de ruta que en escritorio: mismas clases del punto 6. */
+.movil__mapa { position: relative; height: 296px; background: var(--sup-panel-3); flex-shrink: 0; overflow: hidden; }
+.movil__mapa-controles { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.movil__mapa-boton {
+  display: flex; align-items: center; justify-content: center;
+  width: var(--alto-tactil); height: var(--alto-tactil); padding: 0;
+  border: 1px solid var(--filete); border-radius: var(--radio-panel);
+  background: rgba(255, 255, 255, .94); cursor: pointer;
+}
+
+/* 7.c — hoja inferior: solapa el mapa 14 px, mismo radio.
+   El asa no es decorativa: es el objetivo de arrastre. */
+.hoja {
+  display: flex; flex-direction: column; flex-grow: 1; min-height: 0;
+  background: var(--sup-panel);
+  border-radius: var(--radio-hoja) var(--radio-hoja) 0 0;
+  margin-top: -14px; position: relative;
+  box-shadow: 0 -2px 14px rgba(13, 20, 28, .09);
+}
+.hoja__asa { display: flex; justify-content: center; padding: 8px 0 4px; flex-shrink: 0; }
+.hoja__asa span { width: 36px; height: 4px; border-radius: 2px; background: var(--filete); }
+
+/* En móvil los totales no comparten fondo: cada uno lleva su filete. */
+.movil__totales { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.movil__total { border: 1px solid var(--filete); border-radius: var(--radio-panel); padding: 12px 14px; }
+.movil__total .cifra { font-size: var(--txt-cifra-lg); font-weight: 600; line-height: 1; letter-spacing: -.02em; }
+
+/* 7.d — el desglose deja de ser tabla y pasa a lista.
+   Las columnas Fijos y AOM no caben: van en el detalle del tramo.
+   El transportador baja a segunda línea en vez de ser una columna. */
+.movil__desglose { display: flex; flex-direction: column; gap: 2px; }
+.movil__fila {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 48px; padding: 6px 8px;
+  border-radius: var(--radio-control);
+}
+.movil__fila:hover,
+.movil__fila[aria-current="true"] { background: var(--sup-activa); }
+.movil__fila-marca { width: 3px; height: 26px; border-radius: 1px; flex-shrink: 0; }
+.movil__fila-cuerpo { flex-grow: 1; min-width: 0; }
+.movil__fila-tramo { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.movil__fila-meta  { font-size: 10.5px; color: var(--tinta-3); }
+.movil__fila-total { font-size: 13px; font-weight: 500; }
+
+.hoja__pie {
+  display: flex; gap: 10px;
+  padding: 12px 18px 22px;
+  border-top: 1px solid var(--filete-suave); flex-shrink: 0;
+}
+.hoja__pie .boton { height: 48px; width: auto; flex-grow: 1; font-size: var(--txt-dato); }
+.hoja__pie .boton--icono {
+  width: 52px; flex-grow: 0;
+  background: var(--sup-panel);
+  border: 1px solid var(--filete-control);
+}
+.hoja__pie .boton--icono:hover { background: var(--sup-panel-2); border-color: var(--tinta-3); }
+/* ============================================================
+   8. ESTADO INICIAL — antes del primer cálculo
+   La columna del medio no se queda vacía ni muestra un cartel
+   centrado: enseña la ESTRUCTURA del resultado en gris, para
+   que se entienda qué va a aparecer y dónde. Nada de esto es
+   texto legible; son huecos, y por eso quedan fuera de la
+   regla de contraste. Un dato ausente es un guion, nunca 0,00.
+   ============================================================ */
+.titulillo { display: flex; align-items: center; gap: 10px; }
+.titulillo::after { content: ""; flex-grow: 1; height: 1px; background: var(--filete); }
+
+.fantasma__num   { color: var(--tinta-fantasma); }
+.fantasma__barra { height: 8px; border-radius: 2px; background: var(--sup-fantasma); }
+.fantasma__marca { background: var(--sup-fantasma-2); }
+
+/* Campo sin elegir: el valor pierde el peso 500 y baja a
+   terciario, para que no se lea como una selección hecha. */
+.campo__caja--vacia .campo__valor { font-weight: 400; color: var(--tinta-3); }
+.punto-origen--vacio { background: none; border: 1.5px solid var(--tinta-3); }
+/* En móvil el campo sube de --alto-campo (40) a 48: es el control
+   que más se toca, y se toca de pie y en movimiento. */
+.campo__caja--movil { height: var(--alto-campo-movil); }
+/* Sólo en esta página: el estado :focus-within pintado en
+   estático, para que se vea dónde arranca el foco al abrir. */
+.campo__caja--foco { border-color: var(--tinta); box-shadow: 0 0 0 3px rgba(13,20,28,.12); }
+
+/* La acción primaria apagada mientras falte origen o destino.
+   No es var(--sup-inversa) atenuado: cambia de superficie, para
+   que no parezca un botón oscuro roto. */
+.boton--inactivo {
+  border: 1px solid var(--filete);
+  background: var(--sup-panel-2);
+  color: var(--tinta-3);
+  cursor: not-allowed;
+}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>Referencia de diseño — Calculadora de Rutas SNT</h1>
+  <p class="intro">
+    Dirección <strong>instrumental sobria</strong>: neutros fríos, IBM Plex Sans con IBM Plex Mono
+    para toda cifra, paneles planos separados por filetes de 1&nbsp;px en lugar de tarjetas con
+    sombra, y el color reservado a identificar transportador. La acción primaria es tinta casi
+    negra, no azul, para que no compita con el azul de PROMIGAS.
+    Los valores exactos viven en <code>tokens.css</code>. Cópialos de ahí, no de una captura.
+  </p>
+
+  <h2>1. Escritorio 1440 × 980</h2>
+  <p class="nota">
+    El cambio de fondo respecto a la pantalla actual: el mapa deja de ir debajo de la tarjeta de
+    resultados dentro de <code>col-lg-8</code> y pasa a columna propia y siempre visible. Rejilla
+    <code>328px · minmax(0,1fr) · 552px</code>.
+  </p>
+
+  <div class="marco">
+    <div class="app">
+
+      <div class="barra">
+        <div class="barra__marca">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="6" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle>
+            <path d="M7.5 6h5a3.5 3.5 0 0 1 0 7h-3a3.5 3.5 0 0 0 0 7h7"></path>
+          </svg>
+          GEAM·IT
+          <span class="barra__div"></span>
+          <span class="barra__sub">Calculadora de tarifas SNT</span>
+        </div>
+        <div class="barra__hueco"></div>
+        <div class="leyenda">
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--promigas-inv)"></span>PROMIGAS</span>
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--tgi-inv)"></span>TGI</span>
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--promioriente-inv)"></span>PROMIORIENTE</span>
+        </div>
+        <div class="trm-chip">
+          <span style="font-size: var(--txt-micro); color: #7d8b9c; letter-spacing: .08em; text-transform: uppercase">TRM</span>
+          <span class="cifra" style="font-size: 13px; font-weight: 500">4.000,00</span>
+          <span style="font-size: var(--txt-micro); color: var(--promigas-inv)">auto</span>
+        </div>
+      </div>
+
+      <div class="app__cuerpo">
+
+        <!-- ---------- riel de parámetros ---------- -->
+        <div class="riel">
+          <div style="padding: 20px 22px 16px">
+            <div class="rotulo" style="margin-bottom: 14px">Trayecto</div>
+            <div style="position: relative; display: flex; flex-direction: column; gap: 8px">
+              <label class="campo">
+                <span class="campo__etiqueta">Origen</span>
+                <span class="campo__caja">
+                  <span class="punto-origen"></span>
+                  <span class="campo__valor">Cartagena</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </span>
+              </label>
+              <label class="campo">
+                <span class="campo__etiqueta">Destino</span>
+                <span class="campo__caja">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--tinta); flex-shrink: 0"><path d="M5 21V4h14l-3 4 3 4H5"></path></svg>
+                  <span class="campo__valor">Sebastopol</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </span>
+              </label>
+              <button class="invertir" type="button" aria-label="Invertir origen y destino">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M17 20V4M17 4l3 3"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="separador"></div>
+
+          <div style="padding: 18px 22px">
+            <div class="rotulo" style="margin-bottom: 14px">Condiciones</div>
+
+            <div style="margin-bottom: 20px">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px">
+                <span style="font-size: var(--txt-menor); color: var(--tinta-2)">Capacidad contratada</span>
+                <span class="cifra" style="font-size: var(--txt-dato); font-weight: 600">100 %</span>
+              </div>
+              <div class="deslizador">
+                <div class="deslizador__relleno" style="width: 100%"></div>
+                <div class="deslizador__tirador" style="right: -6px"></div>
+              </div>
+              <div class="cifra" style="display: flex; justify-content: space-between; margin-top: 7px; font-size: var(--txt-micro); color: var(--tinta-3)">
+                <span>0</span><span>50</span><span>100</span>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px">
+                <span style="font-size: var(--txt-menor); color: var(--tinta-2)">Tasa de cambio</span>
+                <span style="font-size: var(--txt-micro); color: var(--promigas)">Banrep · hoy</span>
+              </div>
+              <div class="campo__caja" style="height: var(--alto-campo-sec)">
+                <span style="font-size: 12px; color: var(--tinta-3)">COP</span>
+                <span class="cifra campo__valor" style="font-size: var(--txt-dato)">4.000,00</span>
+                <span style="font-size: var(--txt-micro); padding: 2px 6px; border-radius: var(--radio-micro); background: var(--promigas-tenue); color: var(--promigas); font-weight: 500">AUTO</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 4px 22px 18px">
+            <button class="boton" type="button">
+              Calcular ruta
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+            </button>
+            <button class="boton boton--sec" type="button" style="margin-top: 8px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 17h10M18 4v6M18 14v6"></path><circle cx="18" cy="12" r="2"></circle></svg>
+              Comparar con otra ruta
+            </button>
+          </div>
+
+          <div class="separador"></div>
+
+          <div style="padding: 18px 22px; min-height: 0; overflow: hidden">
+            <div class="rotulo" style="margin-bottom: 12px">Rutas frecuentes</div>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip); background: var(--sup-marcada)">
+                <span style="width: 2px; height: 18px; background: var(--tinta); border-radius: 1px"></span>
+                <span style="font-size: var(--txt-tabla); font-weight: 500; flex-grow: 1">Cartagena → Sebastopol</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">13.859</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">Cartagena → Vasconia</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">La Mami → Barranquilla</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- resultados ---------- -->
+        <div class="centro">
+          <div style="padding: 22px 26px 0">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 3px">
+              <h2 style="margin: 0; padding: 0; border: none; font-size: var(--txt-titulo); font-weight: 600; letter-spacing: -.01em">Cartagena → Sebastopol</h2>
+              <span style="font-size: var(--txt-micro); font-weight: 500; padding: 3px 7px; border-radius: var(--radio-micro); background: #e4ecf5; color: var(--tinta-2)">6 TRAMOS</span>
+            </div>
+            <div style="font-size: var(--txt-apoyo); color: var(--tinta-3)">3 transportadores · 100 % de capacidad · TRM 4.000,00</div>
+          </div>
+
+          <div class="totales" style="margin: 20px 26px 0">
+            <div class="total">
+              <div class="rotulo" style="letter-spacing: .09em; margin-bottom: 7px">Tarifa total COP</div>
+              <div class="cifra total__cifra">13.859,44</div>
+              <div class="total__pie">[unidad tarifaria]</div>
+            </div>
+            <div class="total">
+              <div class="rotulo" style="letter-spacing: .09em; margin-bottom: 7px">Tarifa total USD</div>
+              <div class="cifra total__cifra total__cifra--sec">3,46</div>
+              <div class="total__pie">a la TRM aplicada</div>
+            </div>
+          </div>
+
+          <div style="margin: 18px 26px 0">
+            <div class="rotulo" style="letter-spacing: .09em; margin-bottom: 8px">Reparto por transportador</div>
+            <div class="reparto">
+              <div style="width: 27.5%; background: var(--promigas)"></div>
+              <div style="width: 0.6%;  background: var(--conexion)"></div>
+              <div style="width: 71.9%; background: var(--tgi)"></div>
+            </div>
+            <div class="reparto__llave">
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--promigas)"></span>PROMIGAS <span class="cifra" style="font-weight: 500">3.817,73</span> <span class="cifra" style="color: var(--tinta-3)">27,5 %</span></span>
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--tgi)"></span>TGI <span class="cifra" style="font-weight: 500">10.041,71</span> <span class="cifra" style="color: var(--tinta-3)">72,5 %</span></span>
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--conexion)"></span>Conexión <span class="cifra" style="font-weight: 500">0,00</span></span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 22px 26px 0">
+            <span class="rotulo" style="letter-spacing: .09em">Desglose por tramo</span>
+            <span style="font-size: var(--txt-menor); color: var(--tinta-3)">Pasa el cursor por un tramo para verlo en el mapa</span>
+          </div>
+
+          <div class="desglose" style="margin: 10px 26px 0">
+            <div class="desglose__cabecera">
+              <span>Tramo</span><span style="text-align: right">Fijos</span><span style="text-align: right">AOM</span><span style="text-align: right">Total</span>
+            </div>
+
+            <div class="desglose__fila" tabindex="0">
+              <div class="desglose__tramo">
+                <span class="desglose__marca" style="background: var(--promigas)"></span>
+                <span>Cartagena – Barranquilla</span>
+              </div>
+              <span class="cifra desglose__num">750,40</span>
+              <span class="cifra desglose__num">434,52</span>
+              <span class="cifra desglose__num desglose__num--total">1.184,92</span>
+            </div>
+
+            <div class="desglose__fila" tabindex="0" aria-current="true">
+              <div class="desglose__tramo">
+                <span class="desglose__marca" style="background: var(--promigas)"></span>
+                <span style="font-weight: 500">Barranquilla – La Mami</span>
+              </div>
+              <span class="cifra desglose__num">1.320,92</span>
+              <span class="cifra desglose__num">281,65</span>
+              <span class="cifra desglose__num desglose__num--total" style="font-weight: 600">1.602,58</span>
+            </div>
+
+            <div class="desglose__fila" tabindex="0">
+              <div class="desglose__tramo">
+                <span class="desglose__marca" style="background: var(--promigas)"></span>
+                <span>La Mami – Ballenas_prom</span>
+              </div>
+              <span class="cifra desglose__num">746,98</span>
+              <span class="cifra desglose__num">283,25</span>
+              <span class="cifra desglose__num desglose__num--total">1.030,23</span>
+            </div>
+
+            <div class="desglose__fila" tabindex="0">
+              <div class="desglose__tramo">
+                <span class="desglose__marca" style="background: var(--conexion)"></span>
+                <span style="color: var(--tinta-2)">Ballenas_prom – Ballenas_tgi</span>
+                <span class="chip chip--conexion">CONEXIÓN</span>
+              </div>
+              <span class="cifra desglose__num" style="color: var(--tinta-3)">0,00</span>
+              <span class="cifra desglose__num" style="color: var(--tinta-3)">0,00</span>
+              <span class="cifra desglose__num" style="color: var(--tinta-3)">0,00</span>
+            </div>
+
+            <div class="desglose__fila desglose__fila--agrupada" tabindex="0">
+              <div class="desglose__tramo">
+                <span class="desglose__marca" style="background: var(--tgi)"></span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--tinta-2); flex-shrink: 0"><path d="M9 6l6 6-6 6"></path></svg>
+                <span style="color: var(--tinta-2)">Trayecto TGI hasta Sebastopol</span>
+                <span style="font-size: var(--txt-micro); color: var(--tinta-3)">2 tramos</span>
+              </div>
+              <span class="cifra desglose__num" style="color: var(--tinta-3)">—</span>
+              <span class="cifra desglose__num" style="color: var(--tinta-3)">—</span>
+              <span class="cifra desglose__num desglose__num--total">10.041,71</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; margin: 14px 26px 0">
+            <button class="boton boton--min" type="button">PDF</button>
+            <button class="boton boton--min" type="button">Excel</button>
+            <button class="boton boton--min" type="button">Copiar enlace del cálculo</button>
+          </div>
+        </div>
+
+        <!-- ---------- mapa ---------- -->
+        <div class="mapa" data-flujo="on">
+          <div class="mapa__cabecera">
+            <span style="font-size: 12px; font-weight: 600">Red nacional de transporte</span>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 10.5px; padding: 4px 8px; border: 1px solid var(--tinta); border-radius: var(--radio-micro); background: var(--tinta); color: #fff">Ruta</span>
+            <span style="font-size: 10.5px; padding: 4px 8px; border: 1px solid var(--filete); border-radius: var(--radio-micro); color: var(--tinta-3)">Red completa</span>
+            <button type="button" aria-pressed="true" style="width: 28px; height: 28px; padding: 0; border: 1px solid var(--filete); border-radius: var(--radio-micro); background: #fff; cursor: pointer" aria-label="Detener la animación de flujo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round"><path d="M9 5v14M15 5v14"></path></svg>
+            </button>
+          </div>
+
+          <div class="mapa__lienzo">
+            <!-- Coordenadas proyectadas desde js/data.json: lat/lon
+                 reales de los 36 nodos sobre un lienzo de 520 × 600.
+                 Ballenas_prom y Ballenas_tgi comparten coordenada en
+                 los datos; aquí van separadas ~8 px para que la
+                 conexión especial se vea. -->
+            <svg viewBox="0 0 520 600" style="width: 100%; height: 100%; display: block" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Trayecto de Cartagena a Sebastopol sobre la red nacional">
+              <defs>
+                <pattern id="malla" width="26" height="26" patternUnits="userSpaceOnUse">
+                  <circle cx="1" cy="1" r="1" style="fill:var(--filete)"></circle>
+                </pattern>
+                <filter id="brillo" x="-60%" y="-60%" width="220%" height="220%">
+                  <feGaussianBlur stdDeviation="4" result="b"></feGaussianBlur>
+                  <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+                </filter>
+              </defs>
+
+              <!-- SOLO en esta página: en la app, aquí van las teselas. -->
+              <rect x="0" y="0" width="520" height="600" fill="url(#malla)"></rect>
+
+              <!-- red que no participa: 25 % -->
+              <g class="red--secundaria">
+                <g style="stroke:var(--red-base)" stroke-width="1.6" fill="none" stroke-linecap="round">
+                  <path d="M262.6 348.8L223.5 345.5 M223.5 345.5L194.6 362.5 M262.6 348.8L253.8 373 M253.8 373L220.6 481.8 M220.6 481.8L226.7 477.3 M226.7 477.3L211.7 556 M220.6 481.8L187.5 446.3 M187.5 446.3L188.2 462.4 M188.2 462.4L140.5 521.6 M253.8 373L288.5 385.3 M288.5 385.3L287.8 431.8 M288.5 385.3L381 425.6 M381 425.6L361.9 435 M361.9 435L311.4 488.7 M311.4 488.7L307.8 485.3 M311.4 488.7L280.1 463.9"></path>
+                  <path d="M202.4 118.8L206.4 183.6 M206.4 183.6L222.5 177.5 M206.4 183.6L212.8 212.9" style="stroke:var(--red-base-prom)"></path>
+                  <path d="M294.8 311.8L321.8 303.1 M321.8 303.1L337.1 313.3" style="stroke:var(--red-base-pori)"></path>
+                </g>
+                <g style="fill:var(--red-nodo)">
+                  <circle cx="194.6" cy="362.5" r="2.4"></circle><circle cx="253.8" cy="373" r="2.4"></circle>
+                  <circle cx="220.6" cy="481.8" r="2.4"></circle><circle cx="211.7" cy="556" r="2.4"></circle>
+                  <circle cx="140.5" cy="521.6" r="2.4"></circle><circle cx="288.5" cy="385.3" r="2.4"></circle>
+                  <circle cx="287.8" cy="431.8" r="2.4"></circle><circle cx="381" cy="425.6" r="2.4"></circle>
+                  <circle cx="311.4" cy="488.7" r="2.4"></circle><circle cx="212.8" cy="212.9" r="2.4"></circle>
+                  <circle cx="206.4" cy="183.6" r="2.4"></circle><circle cx="337.1" cy="313.3" r="2.4"></circle>
+                  <circle cx="187.5" cy="446.3" r="2.4"></circle>
+                </g>
+              </g>
+
+              <!-- ruta: un path por tramo, en el color de su transportador -->
+              <g fill="none" stroke-linecap="round" filter="url(#brillo)">
+                <path class="ruta__tramo" pathLength="1" d="M202.4 118.8L242.1 87.5" style="stroke:var(--promigas)" stroke-width="4"></path>
+                <path class="ruta__tramo ruta__tramo--enfocado" pathLength="1" d="M242.1 87.5L278.9 70.7" style="stroke:var(--promigas)"></path>
+                <path class="ruta__tramo" pathLength="1" d="M278.9 70.7L368.3 48.4" style="stroke:var(--promigas)" stroke-width="4"></path>
+                <path class="ruta__tramo" pathLength="1" d="M368.3 48.4L361.1 44" style="stroke:var(--conexion)" stroke-width="4"></path>
+                <path class="ruta__tramo" pathLength="1" d="M361.1 44L356.9 87.2" style="stroke:var(--tgi)" stroke-width="4"></path>
+                <path class="ruta__tramo" pathLength="1" d="M356.9 87.2L262.6 348.8" style="stroke:var(--tgi)" stroke-width="4"></path>
+              </g>
+              <g>
+                <path class="ruta__flujo" d="M202.4 118.8L242.1 87.5L278.9 70.7L368.3 48.4"></path>
+                <path class="ruta__flujo" d="M361.1 44L356.9 87.2L262.6 348.8"></path>
+              </g>
+
+              <!-- nodos: origen círculo lleno con halo, destino cuadrado,
+                   intermedios anillo del color de su transportador -->
+              <g>
+                <circle class="nodo__halo" cx="202.4" cy="118.8" r="7" style="fill:var(--tinta)"></circle>
+                <circle cx="202.4" cy="118.8" r="6" style="fill:var(--tinta)" stroke="#fff" stroke-width="2.5"></circle>
+                <circle cx="242.1" cy="87.5" r="4.5" fill="#fff" style="stroke:var(--promigas)" stroke-width="3"></circle>
+                <circle cx="278.9" cy="70.7" r="4" fill="#fff" style="stroke:var(--promigas)" stroke-width="2.5"></circle>
+                <circle cx="368.3" cy="48.4" r="3.5" fill="#fff" style="stroke:var(--conexion)" stroke-width="2.5"></circle>
+                <circle cx="361.1" cy="44" r="3.5" fill="#fff" style="stroke:var(--tgi)" stroke-width="2.5"></circle>
+                <circle cx="356.9" cy="87.2" r="3.5" fill="#fff" style="stroke:var(--tgi)" stroke-width="2.5"></circle>
+                <rect x="256.6" y="342.8" width="12" height="12" rx="2" style="fill:var(--tinta)" stroke="#fff" stroke-width="2.5"></rect>
+              </g>
+              <g font-size="10" font-weight="500" style="font-family:var(--tipo-texto); fill:var(--tinta)">
+                <text x="148" y="134">Cartagena</text>
+                <text x="382" y="52">Ballenas</text>
+                <text x="368" y="93">Barranca</text>
+                <text x="276" y="367">Sebastopol</text>
+              </g>
+
+              <!-- etiqueta del tramo enfocado -->
+              <g>
+                <rect x="176" y="30" width="132" height="36" rx="4" style="fill:var(--tinta)"></rect>
+                <text x="187" y="45" font-size="9.5" style="font-family:var(--tipo-texto); fill:var(--tinta-inversa-3)">Barranquilla – La Mami</text>
+                <text x="187" y="59" style="font-family:var(--tipo-cifra)" font-size="11.5" font-weight="600" fill="#fff">1.602,58 COP</text>
+                <path d="M238 66L244 74L232 74Z" style="fill:var(--tinta)"></path>
+              </g>
+            </svg>
+
+            <div class="escala"><span class="escala__barra"></span><span class="cifra" style="font-size: var(--txt-micro); color: var(--tinta-3)">100 km</span></div>
+          </div>
+
+          <div class="mapa__pie">
+            <span>Cartografía CARTO · OpenStreetMap</span>
+            <div style="flex-grow: 1"></div>
+            <span>6 tramos · [km del trayecto]</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <h2>2. Secuencia del mapa al calcular</h2>
+  <p class="nota">
+    <strong>01 Encuadre.</strong> <code>flyToBounds</code> sobre el trayecto en 600&nbsp;ms; la red que no
+    participa baja al 25&nbsp;% de opacidad (<code>.red--secundaria</code>).<br>
+    <strong>02 Trazo progresivo.</strong> Un <code>&lt;path&gt;</code> por tramo con <code>pathLength="1"</code>,
+    dibujado con <code>stroke-dashoffset</code> de 1 a 0, 160&nbsp;ms de retardo entre uno y el siguiente, en el
+    orden del trayecto y cada uno en el color de su transportador.<br>
+    <strong>03 Flujo continuo.</strong> Encima, <code>.ruta__flujo</code>: guiones blancos
+    (<code>stroke-dasharray: 9 15</code>) avanzando en el sentido del gas, ciclo de 1,4&nbsp;s.<br>
+    <strong>04 Tramo enfocado.</strong> Cursor o foco de teclado sobre una fila del desglose →
+    ese tramo pasa a <code>stroke-width: 5.5</code> y saca su etiqueta; el resto de la ruta se atenúa.
+    Funciona también al revés, del mapa a la fila.
+  </p>
+
+  <h2>3. Móvil 390 × 844</h2>
+  <p class="nota">
+    El mapa arriba como protagonista y los resultados en una hoja inferior arrastrable que lo solapa
+    14&nbsp;px. El desglose deja de ser tabla: las columnas Fijos y AOM no caben, así que van en el
+    detalle del tramo y el transportador baja a segunda línea. Ningún objetivo táctil por debajo de
+    44&nbsp;px. <strong>No se dibuja barra de estado ni teclado:</strong> el sistema los pinta encima y
+    un duplicado pintado se ve doble. La capa de la ruta es la misma del punto 6, con las mismas
+    clases.
+  </p>
+
+  <div class="marco" style="width: 390px">
+    <div class="movil">
+
+      <div class="movil__barra">
+        <button class="movil__icono" type="button" style="margin-left: -12px" aria-label="Volver">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+        </button>
+        <div style="flex-grow: 1; min-width: 0">
+          <div class="movil__barra-titulo">Cartagena → Sebastopol</div>
+          <div class="movil__barra-meta">6 tramos · 100 % · TRM 4.000</div>
+        </div>
+        <button class="movil__icono" type="button" style="margin-right: -10px" aria-label="Exportar">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"></path></svg>
+        </button>
+      </div>
+
+      <div class="movil__mapa" data-flujo="on">
+        <!-- preserveAspectRatio="slice": en móvil se recorta sobre el
+             trayecto en vez de encogerlo. Mismas coordenadas del
+             punto 6, proyectadas desde js/data.json. -->
+        <svg viewBox="150 20 260 340" style="width: 100%; height: 100%; display: block" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Trayecto de Cartagena a Sebastopol">
+          <defs>
+            <pattern id="malla-m" width="16" height="16" patternUnits="userSpaceOnUse">
+              <circle cx="0.8" cy="0.8" r="0.8" style="fill:var(--filete)"></circle>
+            </pattern>
+            <filter id="brillo-m" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="3" result="b"></feGaussianBlur>
+              <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+            </filter>
+          </defs>
+
+          <!-- SOLO en esta página: en la app, aquí van las teselas. -->
+          <rect x="150" y="20" width="260" height="340" fill="url(#malla-m)"></rect>
+
+          <g class="red--secundaria">
+            <g stroke-width="1.4" fill="none" stroke-linecap="round" style="stroke:var(--red-base)">
+              <path d="M262.6 348.8L223.5 345.5 M202.4 118.8L206.4 183.6 M206.4 183.6L212.8 212.9"></path>
+              <path d="M294.8 311.8L321.8 303.1 M321.8 303.1L337.1 313.3" style="stroke:var(--red-base-pori)"></path>
+            </g>
+            <g style="fill:var(--red-nodo)">
+              <circle cx="212.8" cy="212.9" r="2"></circle><circle cx="206.4" cy="183.6" r="2"></circle>
+              <circle cx="337.1" cy="313.3" r="2"></circle>
+            </g>
+          </g>
+
+          <g fill="none" stroke-linecap="round" filter="url(#brillo-m)">
+            <path class="ruta__tramo" pathLength="1" d="M202.4 118.8L242.1 87.5" style="stroke:var(--promigas)" stroke-width="3.6"></path>
+            <path class="ruta__tramo" pathLength="1" d="M242.1 87.5L278.9 70.7" style="stroke:var(--promigas)" stroke-width="3.6"></path>
+            <path class="ruta__tramo" pathLength="1" d="M278.9 70.7L368.3 48.4" style="stroke:var(--promigas)" stroke-width="3.6"></path>
+            <path class="ruta__tramo" pathLength="1" d="M368.3 48.4L361.1 44" style="stroke:var(--conexion)" stroke-width="3.6"></path>
+            <path class="ruta__tramo" pathLength="1" d="M361.1 44L356.9 87.2" style="stroke:var(--tgi)" stroke-width="3.6"></path>
+            <path class="ruta__tramo" pathLength="1" d="M356.9 87.2L262.6 348.8" style="stroke:var(--tgi)" stroke-width="3.6"></path>
+          </g>
+          <g>
+            <path class="ruta__flujo" style="stroke-width:1.8" d="M202.4 118.8L242.1 87.5L278.9 70.7L368.3 48.4"></path>
+            <path class="ruta__flujo" style="stroke-width:1.8" d="M361.1 44L356.9 87.2L262.6 348.8"></path>
+          </g>
+
+          <g>
+            <circle class="nodo__halo" cx="202.4" cy="118.8" r="6" style="fill:var(--tinta)"></circle>
+            <circle cx="202.4" cy="118.8" r="5" stroke="#fff" stroke-width="2" style="fill:var(--tinta)"></circle>
+            <circle cx="242.1" cy="87.5" r="3.2" fill="#fff" stroke-width="2" style="stroke:var(--promigas)"></circle>
+            <circle cx="278.9" cy="70.7" r="3.2" fill="#fff" stroke-width="2" style="stroke:var(--promigas)"></circle>
+            <circle cx="361.1" cy="44" r="3" fill="#fff" stroke-width="2" style="stroke:var(--tgi)"></circle>
+            <circle cx="356.9" cy="87.2" r="3" fill="#fff" stroke-width="2" style="stroke:var(--tgi)"></circle>
+            <rect x="257.6" y="343.8" width="10" height="10" rx="2" stroke="#fff" stroke-width="2" style="fill:var(--tinta)"></rect>
+          </g>
+          <g font-size="9" font-weight="500" style="font-family:var(--tipo-texto); fill:var(--tinta)">
+            <text x="160" y="131">Cartagena</text>
+            <text x="374" y="50">Ballenas</text>
+            <text x="272" y="352">Sebastopol</text>
+          </g>
+        </svg>
+
+        <div class="movil__mapa-controles">
+          <button class="movil__mapa-boton" type="button" aria-label="Encuadrar el trayecto">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"></path></svg>
+          </button>
+          <button class="movil__mapa-boton" type="button" aria-pressed="true" aria-label="Detener la animación de flujo">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round"><path d="M9 5v14M15 5v14"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="hoja">
+        <div class="hoja__asa"><span></span></div>
+
+        <div style="padding: 6px 18px 0">
+          <div class="movil__totales">
+            <div class="movil__total">
+              <div class="rotulo" style="letter-spacing: .09em; font-size: 9.5px; margin-bottom: 6px">Total COP</div>
+              <div class="cifra">13.859,44</div>
+            </div>
+            <div class="movil__total">
+              <div class="rotulo" style="letter-spacing: .09em; font-size: 9.5px; margin-bottom: 6px">Total USD</div>
+              <div class="cifra" style="color: var(--tinta-2)">3,46</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 16px 18px 0">
+          <div class="reparto">
+            <div style="width: 27.5%; background: var(--promigas)"></div>
+            <div style="width: 0.6%;  background: var(--conexion)"></div>
+            <div style="width: 71.9%; background: var(--tgi)"></div>
+          </div>
+          <div class="reparto__llave" style="gap: 16px; margin-top: 8px">
+            <span class="reparto__item" style="font-size: var(--txt-menor)"><span class="reparto__color" style="background: var(--promigas)"></span>PROMIGAS <span class="cifra" style="color: var(--tinta-3)">27,5 %</span></span>
+            <span class="reparto__item" style="font-size: var(--txt-menor)"><span class="reparto__color" style="background: var(--tgi)"></span>TGI <span class="cifra" style="color: var(--tinta-3)">72,5 %</span></span>
+          </div>
+        </div>
+
+        <div style="padding: 18px 18px 0; flex-grow: 1; min-height: 0; overflow: hidden">
+          <div class="rotulo" style="letter-spacing: .09em; font-size: 9.5px; margin-bottom: 10px">Desglose por tramo</div>
+          <div class="movil__desglose">
+
+            <div class="movil__fila" tabindex="0">
+              <span class="movil__fila-marca" style="background: var(--promigas)"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo">Cartagena – Barranquilla</div>
+                <div class="movil__fila-meta">PROMIGAS</div>
+              </div>
+              <span class="cifra movil__fila-total">1.184,92</span>
+            </div>
+
+            <div class="movil__fila" tabindex="0" aria-current="true">
+              <span class="movil__fila-marca" style="background: var(--promigas)"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo" style="font-weight: 500">Barranquilla – La Mami</div>
+                <div class="movil__fila-meta">PROMIGAS · tocado en el mapa</div>
+              </div>
+              <span class="cifra movil__fila-total" style="font-weight: 600">1.602,58</span>
+            </div>
+
+            <div class="movil__fila" tabindex="0">
+              <span class="movil__fila-marca" style="background: var(--promigas)"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo">La Mami – Ballenas_prom</div>
+                <div class="movil__fila-meta">PROMIGAS</div>
+              </div>
+              <span class="cifra movil__fila-total">1.030,23</span>
+            </div>
+
+            <div class="movil__fila" tabindex="0">
+              <span class="movil__fila-marca" style="background: var(--tgi)"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo" style="color: var(--tinta-2)">Trayecto TGI hasta Sebastopol</div>
+                <div class="movil__fila-meta">2 tramos + 1 conexión</div>
+              </div>
+              <span class="cifra movil__fila-total">10.041,71</span>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="hoja__pie">
+          <button class="boton boton--icono" type="button" aria-label="Copiar enlace del cálculo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>
+          </button>
+          <button class="boton" type="button">Cambiar trayecto</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <h2>4. Estado inicial · antes del primer cálculo</h2>
+  <p class="nota">
+    Lo que se ve al abrir la aplicación, sin ninguna petición a <code>POST /api/calcular</code>. El
+    problema que resuelve esta pantalla es un vacío: hoy la columna del medio sólo contiene
+    <code>#resultsCard</code> oculto. La respuesta NO es un cartel centrado en un hueco de 900 px,
+    sino la estructura del resultado dibujada en gris —totales, reparto y desglose— para que se
+    entienda qué va a aparecer y dónde. Ocupa algo más de la mitad del alto de la columna; ésa es
+    la medida que hay que conservar. Los huecos van con guion, nunca con <code>0,00</code>: un cero
+    se lee como resultado.
+  </p>
+
+  <div class="marco">
+    <div class="app">
+
+      <div class="barra">
+        <div class="barra__marca">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="6" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle>
+            <path d="M7.5 6h5a3.5 3.5 0 0 1 0 7h-3a3.5 3.5 0 0 0 0 7h7"></path>
+          </svg>
+          GEAM·IT
+          <span class="barra__div"></span>
+          <span class="barra__sub">Calculadora de tarifas SNT</span>
+        </div>
+        <div class="barra__hueco"></div>
+        <div class="leyenda">
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--promigas-inv)"></span>PROMIGAS</span>
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--tgi-inv)"></span>TGI</span>
+          <span class="leyenda__item"><span class="leyenda__linea" style="background: var(--promioriente-inv)"></span>PROMIORIENTE</span>
+        </div>
+        <div class="trm-chip">
+          <span style="font-size: var(--txt-micro); color: #7d8b9c; letter-spacing: .08em; text-transform: uppercase">TRM</span>
+          <span class="cifra" style="font-size: 13px; font-weight: 500">4.000,00</span>
+          <span style="font-size: var(--txt-micro); color: var(--promigas-inv)">auto</span>
+        </div>
+      </div>
+
+      <div class="app__cuerpo">
+
+        <!-- ---------- riel: nada elegido todavía ---------- -->
+        <div class="riel">
+          <div style="padding: 20px 22px 16px">
+            <div class="rotulo" style="margin-bottom: 14px">Trayecto</div>
+            <div style="position: relative; display: flex; flex-direction: column; gap: 8px">
+              <label class="campo">
+                <span class="campo__etiqueta">Origen</span>
+                <span class="campo__caja campo__caja--vacia campo__caja--foco">
+                  <span class="punto-origen punto-origen--vacio"></span>
+                  <span class="campo__valor">Selecciona un nodo de entrada</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </span>
+              </label>
+              <label class="campo">
+                <span class="campo__etiqueta">Destino</span>
+                <span class="campo__caja campo__caja--vacia">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--tinta-3); flex-shrink: 0"><path d="M5 21V4h14l-3 4 3 4H5"></path></svg>
+                  <span class="campo__valor">Selecciona un nodo de salida</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </span>
+              </label>
+              <button class="invertir" type="button" aria-label="Invertir origen y destino" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="stroke:var(--red-nodo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M17 20V4M17 4l3 3"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="separador"></div>
+
+          <div style="padding: 18px 22px">
+            <div class="rotulo" style="margin-bottom: 14px">Condiciones</div>
+
+            <div style="margin-bottom: 20px">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px">
+                <span style="font-size: var(--txt-menor); color: var(--tinta-2)">Capacidad contratada</span>
+                <span class="cifra" style="font-size: var(--txt-dato); font-weight: 600">100 %</span>
+              </div>
+              <div class="deslizador">
+                <div class="deslizador__relleno" style="width: 100%"></div>
+                <div class="deslizador__tirador" style="right: -6px"></div>
+              </div>
+              <div class="cifra" style="display: flex; justify-content: space-between; margin-top: 7px; font-size: var(--txt-micro); color: var(--tinta-3)">
+                <span>0</span><span>50</span><span>100</span>
+              </div>
+            </div>
+
+            <div>
+              <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px">
+                <span style="font-size: var(--txt-menor); color: var(--tinta-2)">Tasa de cambio</span>
+                <span style="font-size: var(--txt-micro); color: var(--promigas)">Banrep · hoy</span>
+              </div>
+              <div class="campo__caja" style="height: var(--alto-campo-sec)">
+                <span style="font-size: 12px; color: var(--tinta-3)">COP</span>
+                <span class="cifra campo__valor" style="font-size: var(--txt-dato)">4.000,00</span>
+                <span style="font-size: var(--txt-micro); padding: 2px 6px; border-radius: var(--radio-micro); background: var(--promigas-tenue); color: var(--promigas); font-weight: 500">AUTO</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 4px 22px 18px">
+            <button class="boton boton--inactivo" type="button" disabled aria-describedby="falta-trayecto">
+              Calcular ruta
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+            </button>
+            <div id="falta-trayecto" style="font-size: var(--txt-menor); color: var(--tinta-3); text-align: center; margin-top: 8px">Faltan origen y destino</div>
+          </div>
+
+          <div class="separador"></div>
+
+          <div style="padding: 18px 22px; min-height: 0; overflow: hidden">
+            <div class="rotulo" style="margin-bottom: 12px">Rutas frecuentes</div>
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">Cartagena → Sebastopol</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">Cartagena → Vasconia</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">La Mami → Barranquilla</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radio-chip)">
+                <span style="width: 2px; height: 18px"></span>
+                <span style="font-size: var(--txt-tabla); color: var(--tinta-2); flex-grow: 1">Cusiana → Transmetano</span>
+                <span class="cifra" style="font-size: var(--txt-menor); color: var(--tinta-3)">[COP]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- columna central: estructura del resultado en gris ---------- -->
+        <div class="centro">
+          <div style="padding: 22px 26px 0">
+            <h2 style="margin: 0 0 5px; padding: 0; border: none; font-size: var(--txt-titulo); font-weight: 600; letter-spacing: -.01em">Elige un origen y un destino</h2>
+            <p style="margin: 0; font-size: var(--txt-tabla); color: var(--tinta-2); line-height: 1.5; max-width: 46ch">
+              La calculadora busca el trayecto por la red, aplica la estampilla de cada transportador
+              y arma el desglose. Puedes empezar por una ruta frecuente.
+            </p>
+          </div>
+
+          <div class="titulillo rotulo" style="margin: 22px 26px 0">Lo que verás aquí</div>
+
+          <div class="totales" style="margin: 14px 26px 0">
+            <div class="total">
+              <div class="rotulo" style="margin-bottom: 7px">Tarifa total COP</div>
+              <div class="cifra total__cifra fantasma__num">—</div>
+              <div class="total__pie">[unidad tarifaria]</div>
+            </div>
+            <div class="total">
+              <div class="rotulo" style="margin-bottom: 7px">Tarifa total USD</div>
+              <div class="cifra total__cifra fantasma__num">—</div>
+              <div class="total__pie">a la TRM aplicada</div>
+            </div>
+          </div>
+
+          <div style="margin: 18px 26px 0">
+            <div class="rotulo" style="margin-bottom: 8px">Reparto por transportador</div>
+            <div class="reparto"></div>
+            <div class="reparto__llave">
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--red-base-prom)"></span>PROMIGAS</span>
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--red-base)"></span>TGI</span>
+              <span class="reparto__item"><span class="reparto__color" style="background: var(--red-base-pori)"></span>PROMIORIENTE</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 22px 26px 0">
+            <span class="rotulo">Desglose por tramo</span>
+            <span style="font-size: var(--txt-menor); color: var(--tinta-3)">Fijos y AOM de cada tramo, agrupados por transportador</span>
+          </div>
+
+          <div class="desglose" style="margin: 10px 26px 0">
+            <div class="desglose__cabecera">
+              <span>Tramo</span>
+              <span style="text-align: right">Fijos</span>
+              <span style="text-align: right">AOM</span>
+              <span style="text-align: right">Total</span>
+            </div>
+            <div class="desglose__fila">
+              <div class="desglose__tramo">
+                <span class="desglose__marca fantasma__marca"></span>
+                <span class="fantasma__barra" style="width: 168px"></span>
+              </div>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+            </div>
+            <div class="desglose__fila">
+              <div class="desglose__tramo">
+                <span class="desglose__marca fantasma__marca"></span>
+                <span class="fantasma__barra" style="width: 132px"></span>
+              </div>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+            </div>
+            <div class="desglose__fila">
+              <div class="desglose__tramo">
+                <span class="desglose__marca fantasma__marca"></span>
+                <span class="fantasma__barra" style="width: 196px"></span>
+              </div>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+            </div>
+            <div class="desglose__fila">
+              <div class="desglose__tramo">
+                <span class="desglose__marca fantasma__marca"></span>
+                <span class="fantasma__barra" style="width: 150px"></span>
+              </div>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+            </div>
+            <div class="desglose__fila">
+              <div class="desglose__tramo">
+                <span class="desglose__marca fantasma__marca"></span>
+                <span class="fantasma__barra" style="width: 114px"></span>
+              </div>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+              <span class="cifra desglose__num fantasma__num">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- mapa: red completa en reposo ---------- -->
+        <div class="mapa">
+          <div class="mapa__cabecera">
+            <span style="font-size: 12px; font-weight: 600">Red nacional de transporte</span>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 10.5px; padding: 4px 8px; border: 1px solid var(--filete); border-radius: var(--radio-micro); color: var(--red-nodo)">Ruta</span>
+            <span style="font-size: 10.5px; padding: 4px 8px; border: 1px solid var(--tinta); border-radius: var(--radio-micro); background: var(--tinta); color: #fff">Red completa</span>
+            <button type="button" style="width: 28px; height: 28px; padding: 0; border: 1px solid var(--filete); border-radius: var(--radio-micro); background: #fff; cursor: pointer" aria-label="Encuadrar la red completa">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"></path></svg>
+            </button>
+          </div>
+
+          <div class="mapa__lienzo">
+            <!-- Sin trayecto no hay red secundaria: la red entera está
+                 en reposo, con el color de reposo de cada transportador.
+                 NO se aplica .red--secundaria — ese 25 % es la atenuación
+                 RELATIVA a una ruta activa, y aquí no hay ninguna. -->
+            <svg viewBox="0 0 520 600" style="width: 100%; height: 100%; display: block" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Red nacional de transporte, sin trayecto calculado">
+              <defs>
+                <pattern id="malla-inicial" width="26" height="26" patternUnits="userSpaceOnUse">
+                  <circle cx="1" cy="1" r="1" style="fill:var(--filete)"></circle>
+                </pattern>
+              </defs>
+
+              <!-- SOLO en esta página: en la app, aquí van las teselas. -->
+              <rect x="0" y="0" width="520" height="600" fill="url(#malla-inicial)"></rect>
+
+              <g style="stroke:var(--red-base)" stroke-width="1.6" fill="none" stroke-linecap="round">
+                <path d="M262.6 348.8L223.5 345.5 M223.5 345.5L194.6 362.5 M262.6 348.8L253.8 373 M253.8 373L220.6 481.8 M220.6 481.8L226.7 477.3 M226.7 477.3L211.7 556 M220.6 481.8L187.5 446.3 M187.5 446.3L188.2 462.4 M188.2 462.4L140.5 521.6 M253.8 373L288.5 385.3 M288.5 385.3L287.8 431.8 M288.5 385.3L381 425.6 M381 425.6L361.9 435 M361.9 435L311.4 488.7 M311.4 488.7L307.8 485.3 M311.4 488.7L280.1 463.9"></path>
+                <path d="M202.4 118.8L206.4 183.6 M206.4 183.6L222.5 177.5 M206.4 183.6L212.8 212.9" style="stroke:var(--red-base-prom)"></path>
+                <path d="M294.8 311.8L321.8 303.1 M321.8 303.1L337.1 313.3" style="stroke:var(--red-base-pori)"></path>
+                <path d="M202.4 118.8L242.1 87.5 M242.1 87.5L278.9 70.7 M278.9 70.7L368.3 48.4" style="stroke:var(--red-base-prom)"></path>
+                <path d="M368.3 48.4L361.1 44 M361.1 44L356.9 87.2 M356.9 87.2L262.6 348.8"></path>
+              </g>
+              <g style="fill:var(--red-nodo)">
+                <circle cx="194.6" cy="362.5" r="2.4"></circle><circle cx="253.8" cy="373" r="2.4"></circle>
+                <circle cx="220.6" cy="481.8" r="2.4"></circle><circle cx="211.7" cy="556" r="2.4"></circle>
+                <circle cx="140.5" cy="521.6" r="2.4"></circle><circle cx="288.5" cy="385.3" r="2.4"></circle>
+                <circle cx="287.8" cy="431.8" r="2.4"></circle><circle cx="381" cy="425.6" r="2.4"></circle>
+                <circle cx="311.4" cy="488.7" r="2.4"></circle><circle cx="212.8" cy="212.9" r="2.4"></circle>
+                <circle cx="206.4" cy="183.6" r="2.4"></circle><circle cx="337.1" cy="313.3" r="2.4"></circle>
+                <circle cx="187.5" cy="446.3" r="2.4"></circle><circle cx="202.4" cy="118.8" r="2.4"></circle>
+                <circle cx="242.1" cy="87.5" r="2.4"></circle><circle cx="278.9" cy="70.7" r="2.4"></circle>
+                <circle cx="368.3" cy="48.4" r="2.4"></circle><circle cx="356.9" cy="87.2" r="2.4"></circle>
+                <circle cx="262.6" cy="348.8" r="2.4"></circle>
+              </g>
+              <g font-size="8.5" style="fill:var(--tinta-3)">
+                <text x="184" y="374">Medellín</text><text x="200" y="493">Mariquita</text>
+                <text x="194" y="566">Neiva</text><text x="124" y="533">Cali</text>
+                <text x="292" y="440">Cusiana</text><text x="318" y="499">Apiay</text>
+                <text x="198" y="224">Jobo</text><text x="343" y="322">Bucaramanga</text>
+                <text x="262" y="440">Cogua</text><text x="148" y="122">Cartagena</text>
+                <text x="382" y="52">Ballenas</text><text x="368" y="93">Barranca</text>
+                <text x="276" y="360">Sebastopol</text>
+              </g>
+            </svg>
+
+            <div class="escala">
+              <div class="escala__barra"></div>
+              <span class="cifra" style="font-size: var(--txt-micro); color: var(--tinta-3)">100 km</span>
+            </div>
+          </div>
+
+          <div class="mapa__pie">
+            <span>Cartografía CARTO · OpenStreetMap</span>
+            <div style="flex-grow: 1"></div>
+            <span>Red completa · 36 nodos</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <p class="nota" style="margin-top: 28px">
+    <strong>El mismo estado en móvil, y aquí NO es el espejo del escritorio.</strong> En 1440 el riel
+    izquierdo sostiene el formulario siempre, así que la columna del medio puede permitirse la
+    estructura en gris. En 390 no hay riel: la hoja inferior es la única superficie disponible, y
+    gastarla en un esqueleto dejaría el formulario fuera de la pantalla. Así que al abrir, la hoja
+    <em>es</em> el formulario —origen, destino, capacidad y TRM— con la acción primaria abajo, al
+    alcance del pulgar, y el mapa arriba con la red completa en reposo. La estructura del resultado
+    aparece cuando hay algo que estructurar. Ningún objetivo táctil baja de 44&nbsp;px y el campo del
+    formulario sube a <code>--alto-campo-movil</code> (48&nbsp;px), que es el control que más se toca
+    en movimiento.
+  </p>
+  <p class="nota">
+    <strong>Al abrir, la hoja no se arrastra</strong>, y por eso no lleva asa: el asa aparece con
+    los resultados. La razón no es de estilo. En la pantalla calculada la hoja no contiene ningún
+    campo de texto, así que el teclado del sistema nunca sale; aquí la hoja <em>es</em> el
+    formulario, y tocar Origen encoge el viewport cerca de un 40&nbsp;%. Una hoja colocada por
+    arrastre más un teclado que redimensiona la pantalla es justo donde estas interfaces se rompen:
+    la hoja queda a una altura que ya no corresponde o la acción primaria se va debajo del teclado.
+    Si más adelante hace falta ver la red antes de elegir, lo que crece es el mapa —con el botón de
+    encuadre que ya está ahí—, no la hoja.
+  </p>
+
+  <div class="marco" style="width: 390px">
+    <div class="movil">
+
+      <div class="movil__barra">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0">
+          <circle cx="5" cy="6" r="2.5"></circle><circle cx="19" cy="18" r="2.5"></circle>
+          <path d="M7.5 6h5a3.5 3.5 0 0 1 0 7h-3a3.5 3.5 0 0 0 0 7h7"></path>
+        </svg>
+        <div style="flex-grow: 1; min-width: 0">
+          <div class="movil__barra-titulo">Tarifas SNT</div>
+          <div class="movil__barra-meta">Sin trayecto elegido</div>
+        </div>
+        <button class="movil__icono" type="button" style="margin-right: -10px" aria-label="Rutas frecuentes">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"></path></svg>
+        </button>
+      </div>
+
+      <div class="movil__mapa">
+        <!-- Sin trayecto el encuadre cambia de sentido: en la pantalla
+             calculada el mapa RECORTA sobre la ruta (slice); aquí tiene
+             que caber la red entera, así que va con meet y un viewBox
+             ampliado al ancho del recuadro. A esta escala las etiquetas
+             de 8,5 px serían ilegibles: van a 16 unidades de viewBox
+             (~8,3 px reales) y sólo en cinco nodos de referencia. En la
+             app las teselas CARTO llenan los costados; el blanco de esta
+             página es del papel, no del diseño. -->
+        <svg viewBox="-118 20 751 570" style="width: 100%; height: 100%; display: block" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Red nacional de transporte, sin trayecto elegido">
+          <defs>
+            <pattern id="malla-mi" width="26" height="26" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="1.2" style="fill:var(--filete)"></circle>
+            </pattern>
+          </defs>
+          <rect x="-118" y="20" width="751" height="570" fill="url(#malla-mi)"></rect>
+
+          <g stroke-width="3" fill="none" stroke-linecap="round" style="stroke:var(--red-base)">
+            <path d="M262.6 348.8L223.5 345.5 M223.5 345.5L194.6 362.5 M262.6 348.8L253.8 373 M253.8 373L220.6 481.8 M220.6 481.8L226.7 477.3 M226.7 477.3L211.7 556 M220.6 481.8L187.5 446.3 M187.5 446.3L188.2 462.4 M188.2 462.4L140.5 521.6 M253.8 373L288.5 385.3 M288.5 385.3L287.8 431.8 M288.5 385.3L381 425.6 M381 425.6L361.9 435 M361.9 435L311.4 488.7 M311.4 488.7L307.8 485.3 M311.4 488.7L280.1 463.9"></path>
+            <path d="M202.4 118.8L206.4 183.6 M206.4 183.6L222.5 177.5 M206.4 183.6L212.8 212.9" style="stroke:var(--red-base-prom)"></path>
+            <path d="M294.8 311.8L321.8 303.1 M321.8 303.1L337.1 313.3" style="stroke:var(--red-base-pori)"></path>
+            <path d="M202.4 118.8L242.1 87.5 M242.1 87.5L278.9 70.7 M278.9 70.7L368.3 48.4" style="stroke:var(--red-base-prom)"></path>
+            <path d="M368.3 48.4L361.1 44 M361.1 44L356.9 87.2 M356.9 87.2L262.6 348.8"></path>
+          </g>
+          <g style="fill:var(--red-nodo)">
+            <circle cx="194.6" cy="362.5" r="4.5"></circle><circle cx="253.8" cy="373" r="4.5"></circle>
+            <circle cx="220.6" cy="481.8" r="4.5"></circle><circle cx="211.7" cy="556" r="4.5"></circle>
+            <circle cx="140.5" cy="521.6" r="4.5"></circle><circle cx="288.5" cy="385.3" r="4.5"></circle>
+            <circle cx="287.8" cy="431.8" r="4.5"></circle><circle cx="381" cy="425.6" r="4.5"></circle>
+            <circle cx="311.4" cy="488.7" r="4.5"></circle><circle cx="212.8" cy="212.9" r="4.5"></circle>
+            <circle cx="206.4" cy="183.6" r="4.5"></circle><circle cx="337.1" cy="313.3" r="4.5"></circle>
+            <circle cx="187.5" cy="446.3" r="4.5"></circle><circle cx="202.4" cy="118.8" r="4.5"></circle>
+            <circle cx="242.1" cy="87.5" r="4.5"></circle><circle cx="278.9" cy="70.7" r="4.5"></circle>
+            <circle cx="368.3" cy="48.4" r="4.5"></circle><circle cx="356.9" cy="87.2" r="4.5"></circle>
+            <circle cx="262.6" cy="348.8" r="4.5"></circle>
+          </g>
+          <g font-size="16" style="fill:var(--tinta-3)">
+            <text x="120" y="112">Cartagena</text>
+            <text x="386" y="46">Ballenas</text>
+            <text x="278" y="342">Sebastopol</text>
+            <text x="160" y="382">Medellín</text>
+            <text x="112" y="540">Cali</text>
+          </g>
+        </svg>
+
+        <div class="movil__mapa-controles">
+          <button class="movil__mapa-boton" type="button" aria-label="Encuadrar la red completa">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="hoja">
+        <!-- Sin asa. Al abrir, la hoja NO se arrastra: el asa y su
+             arrastre viven con los resultados (punto 7.c y T-013), no
+             aquí. Un asa que no arrastra promete algo que no pasa. -->
+
+        <div style="padding: 18px 18px 0">
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <label class="campo">
+              <span class="campo__etiqueta">Origen</span>
+              <span class="campo__caja campo__caja--vacia campo__caja--foco campo__caja--movil">
+                <span class="punto-origen punto-origen--vacio"></span>
+                <span class="campo__valor" style="font-size: 15px">Selecciona un nodo de entrada</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              </span>
+            </label>
+            <label class="campo">
+              <span class="campo__etiqueta">Destino</span>
+              <span class="campo__caja campo__caja--vacia campo__caja--movil">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--tinta-3); flex-shrink: 0"><path d="M5 21V4h14l-3 4 3 4H5"></path></svg>
+                <span class="campo__valor" style="font-size: 15px">Selecciona un nodo de salida</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding: 16px 18px 0">
+          <div style="flex-grow: 1">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px">
+              <span style="font-size: var(--txt-menor); color: var(--tinta-2)">Capacidad</span>
+              <span class="cifra" style="font-size: 14px; font-weight: 600">100 %</span>
+            </div>
+            <div class="deslizador">
+              <div class="deslizador__relleno" style="width: 100%"></div>
+              <div class="deslizador__tirador" style="right: -6px"></div>
+            </div>
+          </div>
+          <div style="width: 142px; flex-shrink: 0">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 5px">
+              <span style="font-size: var(--txt-menor); color: var(--tinta-2)">TRM</span>
+              <span style="font-size: var(--txt-micro); color: var(--promigas)">auto</span>
+            </div>
+            <div class="campo__caja" style="height: var(--alto-campo-sec)">
+              <span class="cifra campo__valor" style="font-size: 14px">4.000,00</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 18px 18px 0; flex-grow: 1; min-height: 0; overflow: hidden">
+          <div class="rotulo" style="letter-spacing: .09em; font-size: 9.5px; margin-bottom: 8px">Rutas frecuentes</div>
+          <div class="movil__desglose">
+            <div class="movil__fila" tabindex="0">
+              <span class="movil__fila-marca fantasma__marca"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo">Cartagena → Sebastopol</div>
+                <div class="movil__fila-meta">6 tramos · 3 transportadores</div>
+              </div>
+              <span class="cifra movil__fila-total fantasma__num">[COP]</span>
+            </div>
+            <div class="movil__fila" tabindex="0">
+              <span class="movil__fila-marca fantasma__marca"></span>
+              <div class="movil__fila-cuerpo">
+                <div class="movil__fila-tramo">Cartagena → Vasconia</div>
+                <div class="movil__fila-meta">[tramos] · [transportadores]</div>
+              </div>
+              <span class="cifra movil__fila-total fantasma__num">[COP]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hoja__pie" style="flex-direction: column; align-items: stretch; gap: 8px; padding-top: 12px">
+          <button class="boton boton--inactivo" type="button" disabled aria-describedby="falta-trayecto-movil" style="height: 48px">
+            Calcular ruta
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="stroke:var(--tinta-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+          </button>
+          <div id="falta-trayecto-movil" style="font-size: var(--txt-menor); color: var(--tinta-3); text-align: center">Faltan origen y destino</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <h2>5. Lo que hay que confirmar con Flavio</h2>
+  <p class="nota">
+    Tres valores no salen de <code>js/data.json</code> y están marcados entre corchetes en esta página:
+    la unidad tarifaria que va bajo el total en COP, los kilómetros del trayecto, y el reparto por
+    tramo del trayecto TGI (solo se conoce su subtotal, 10.041,71). No los inventes.
+  </p>
+
+</div>
+</body>
+</html>

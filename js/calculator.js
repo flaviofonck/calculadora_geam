@@ -2,7 +2,11 @@
 
 // Variables globales
 let currentRoute = null;
-let loadingModal = null;
+const comparisonRoutes = [null, null];
+let trmManualOverride = false;
+let trmAutomaticReady = false;
+
+const TRM_API_URL = 'https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=30&$order=vigenciadesde%20DESC';
 
 // Inicialización cuando se carga la página
 document.addEventListener('DOMContentLoaded', function () {
@@ -10,17 +14,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Inicializar componentes
     initializeForm();
-    initializeModals();
+    initializeResultsSheet();
+    initializeComparisonToggle();
+    initializeMotionToggle();
+    initializeExportActions();
 
     console.log('✅ Calculadora inicializada correctamente');
 });
 
 // Inicializar formulario
 function initializeForm() {
-    populateOriginSelect();
+    window.addEventListener('geam-data-loaded', function () {
+        populateOriginSelect();
+        initializeSharedUrl();
+        initializeTrm();
+    });
 
     // Event listeners
-    document.getElementById('calculatorForm').addEventListener('submit', handleCalculation);
+    document.getElementById('calculatorForm').addEventListener('submit', event => handleCalculation(event, 1));
+    document.getElementById('calculatorForm2').addEventListener('submit', event => handleCalculation(event, 2));
+    document.getElementById('dolar').addEventListener('input', handleTrmInput);
 
     const origenSelect = document.getElementById('origen');
     console.log('🔗 Agregando event listener al select origen:', origenSelect);
@@ -30,38 +43,134 @@ function initializeForm() {
     origenSelect.addEventListener('input', handleOriginChange);
     origenSelect.onchange = handleOriginChange;
 
+    document.getElementById('origen2').addEventListener('change', () => handleOriginChange(2));
+
     console.log('✅ Event listeners agregados (change, input, onchange)');
 
     console.log('📋 Formulario inicializado');
 }
 
-// Inicializar modales
-function initializeModals() {
-    loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+function initializeTrm() {
+    loadAutomaticTrm();
+}
+
+function handleTrmInput() {
+    trmManualOverride = true;
+    trmAutomaticReady = false;
+    setTrmStatus('TRM manual sobrescrita para este cálculo.', 'manual');
+}
+
+function setTrmStatus(message, state = 'info') {
+    const status = document.getElementById('trmStatus');
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+}
+
+function parseTrmDate(value) {
+    if (!value) return null;
+    const match = String(value).match(/^(\d{4})[-/]?(\d{2})[-/]?(\d{2})/);
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function trmRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    return payload ? [payload] : [];
+}
+
+function normalizeTrm(payload) {
+    return trmRows(payload)
+        .map(row => ({
+            value: Number(String(row.valor ?? row.value ?? row.trm ?? '').replace(',', '.')),
+            date: parseTrmDate(row.vigenciadesde ?? row.vigenciaDesde ?? row.fecha ?? row.date),
+        }))
+        .filter(row => Number.isFinite(row.value) && row.value >= 1000 && row.value <= 10000 && row.date)
+        .sort((a, b) => b.date - a.date)[0] || null;
+}
+
+function isTrmFresh(date, now = new Date()) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const effective = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const age = Math.floor((today - effective) / 86400000);
+    return age >= 0 && age <= 3;
+}
+
+function formatTrmDate(date) {
+    return date.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+async function loadAutomaticTrm() {
+    if (trmManualOverride) return;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+        const response = await fetch(window.TRM_API_URL || TRM_API_URL, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const trm = normalizeTrm(await response.json());
+        if (!trm) throw new Error('La respuesta no contiene TRM con fecha');
+        if (!isTrmFresh(trm.date)) throw new Error('La TRM oficial tiene más de 3 días de antigüedad');
+        if (trmManualOverride) return;
+        document.getElementById('dolar').value = String(trm.value);
+        trmAutomaticReady = true;
+        setTrmStatus(`TRM oficial Banco de la República: ${trm.value.toLocaleString('es-CO')} · ${formatTrmDate(trm.date)}`, 'official');
+    } catch (error) {
+        if (!trmManualOverride) {
+            trmAutomaticReady = false;
+            setTrmStatus(`TRM automática no disponible: ${error.name === 'AbortError' ? 'tiempo de espera agotado' : error.message}. Introduzca una TRM manual.`, 'error');
+        }
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function initializeMotionToggle() {
+    const toggle = document.getElementById('motionToggle');
+    const mapPanel = document.querySelector('.mapa');
+    if (!toggle || !mapPanel) return;
+
+    const enabled = sessionStorage.getItem('geam-motion-enabled') !== 'false';
+    const update = value => {
+        mapPanel.dataset.flujo = value ? 'on' : 'off';
+        toggle.setAttribute('aria-pressed', String(value));
+        toggle.setAttribute('aria-label', value ? 'Pausar animación del mapa' : 'Reanudar animación del mapa');
+        toggle.textContent = value ? 'Pausar movimiento' : 'Reanudar movimiento';
+    };
+    update(enabled);
+    toggle.addEventListener('click', () => {
+        const next = toggle.getAttribute('aria-pressed') !== 'true';
+        sessionStorage.setItem('geam-motion-enabled', String(next));
+        update(next);
+    });
 }
 
 // Poblar select de origen
 function populateOriginSelect() {
     const origenSelect = document.getElementById('origen');
+    const origenSelect2 = document.getElementById('origen2');
     const origins = getOriginNodes();
 
-    origenSelect.innerHTML = '<option value="">Seleccione origen...</option>';
+    [origenSelect, origenSelect2].forEach(select => { select.innerHTML = '<option value="">Seleccione origen...</option>'; });
 
     origins.forEach(node => {
         const option = document.createElement('option');
         option.value = node;
         option.textContent = node.replace(/_/g, ' ');
         origenSelect.appendChild(option);
+        origenSelect2.appendChild(option.cloneNode(true));
     });
 
     console.log(`📍 ${origins.length} nodos de origen cargados`);
 }
 
 // Manejar cambio de origen
-function handleOriginChange() {
+function handleOriginChange(routeNumber = 1) {
     console.log('🔄 handleOriginChange disparado');
-    const origen = document.getElementById('origen').value;
-    const destinoSelect = document.getElementById('destino');
+    const suffix = routeNumber === 2 ? '2' : '';
+    const origen = document.getElementById(`origen${suffix}`).value;
+    const destinoSelect = document.getElementById(`destino${suffix}`);
 
     console.log('📍 Origen seleccionado:', origen);
 
@@ -90,14 +199,18 @@ function handleOriginChange() {
     console.log(`🎯 ${destinations.length} destinos TOTALES disponibles`);
 }
 
-// Manejar cálculo de ruta
-async function handleCalculation(event) {
+async function handleCalculation(event, routeNumber = 1) {
     event.preventDefault();
 
-    const origen = document.getElementById('origen').value;
-    const destino = document.getElementById('destino').value;
-    const porcentaje = parseFloat(document.getElementById('porcentaje').value);
-    const dolar = parseFloat(document.getElementById('dolar').value);
+    setExportEnabled(false);
+    currentRoute = null;
+    window.currentRoute = null;
+
+    const suffix = routeNumber === 2 ? '2' : '';
+    const origen = document.getElementById(`origen${suffix}`).value;
+    const destino = document.getElementById(`destino${suffix}`).value;
+    const porcentaje = parseFloat(document.getElementById(`porcentaje${suffix}`).value);
+    const dolar = parseFloat(document.getElementById(`dolar${suffix}`).value);
 
     if (!origen || !destino) {
         showAlert('Por favor seleccione origen y destino', 'warning');
@@ -109,452 +222,520 @@ async function handleCalculation(event) {
         return;
     }
 
+    if (!Number.isFinite(dolar) || dolar < 1000 || dolar > 10000) {
+        showAlert('Introduzca una TRM manual válida entre 1000 y 10000', 'warning');
+        return;
+    }
+
+    if (routeNumber === 1 && !trmAutomaticReady && !trmManualOverride) {
+        showAlert('La TRM automática no está disponible. Introduzca una TRM manual.', 'warning');
+        return;
+    }
+
+    const botonCalcular = document.querySelector('button[type="submit"]');
+
     try {
         showLoading(true);
+        const result = await calculateRoute(origen, destino, porcentaje, dolar);
 
-        // Simular delay de procesamiento
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        comparisonRoutes[routeNumber - 1] = result;
+        currentRoute = result;
+        window.currentRoute = result;
+        if (routeNumber === 1) persistCalculationInUrl(origen, destino, porcentaje, dolar);
+        hideInitialState();
+        displayResults(result, routeNumber);
+        updateMapRoute(result);
+        showAlert('Ruta calculada exitosamente', 'success');
 
-        const result = calculateRoute(origen, destino, porcentaje, dolar);
-
-        if (result.success) {
-            currentRoute = result;
-            displayResults(result);
-            updateMapRoute(result);
-            showAlert('Ruta calculada exitosamente', 'success');
-
-            // Colapsar automáticamente la sección de parámetros para dar relevancia a los resultados
-            const parametrosCollapse = document.getElementById('parametrosCollapse');
-            if (parametrosCollapse && parametrosCollapse.classList.contains('show')) {
-                const collapseInstance = new bootstrap.Collapse(parametrosCollapse, {
-                    toggle: false
-                });
-                collapseInstance.hide();
-                console.log('📋 Parámetros colapsados automáticamente');
-            }
-        } else {
-            showAlert(result.error || 'No se pudo calcular la ruta', 'danger');
+        const parametrosCollapse = document.getElementById('parametrosCollapse');
+        if (parametrosCollapse && parametrosCollapse.classList.contains('show')) {
+            const collapseInstance = new bootstrap.Collapse(parametrosCollapse, {
+                toggle: false
+            });
+            collapseInstance.hide();
         }
 
     } catch (error) {
-        console.error('Error en cálculo:', error);
-        showAlert('Error interno en el cálculo', 'danger');
+        if (error.serviceUnavailable) {
+            console.error('Servicio no disponible:', error);
+            showAlert('Servicio de cálculo no disponible, intenta más tarde', 'danger');
+            if (botonCalcular) botonCalcular.disabled = true;
+        } else {
+            showAlert(error.message || 'No se pudo calcular la ruta', 'danger');
+        }
+        setExportEnabled(false);
+        if (!comparisonRoutes[0] && !comparisonRoutes[1]) {
+            document.getElementById('resultsCard').style.display = 'none';
+            showInitialState();
+        }
     } finally {
         showLoading(false);
     }
 }
 
-// Algoritmo de cálculo de ruta (Dijkstra simplificado)
-function calculateRoute(origen, destino, porcentaje = 100, dolar = 4000) {
-    console.log(`🔍 Calculando ruta: ${origen} → ${destino}`);
+function persistCalculationInUrl(origen, destino, porcentaje, dolar) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('origen', origen);
+    url.searchParams.set('destino', destino);
+    url.searchParams.set('porcentaje', String(porcentaje));
+    url.searchParams.set('dolar', String(dolar));
+    window.history.replaceState(null, '', url);
+}
 
+function initializeSharedUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const keys = ['origen', 'destino', 'porcentaje', 'dolar'];
+    if (!keys.some(key => params.has(key))) return;
+
+    const origen = params.get('origen');
+    const destino = params.get('destino');
+    const porcentaje = Number(params.get('porcentaje'));
+    const dolar = Number(params.get('dolar'));
+    const validPercentage = Number.isFinite(porcentaje) && porcentaje >= 1 && porcentaje <= 100;
+    const validDolar = Number.isFinite(dolar) && dolar >= 1000 && dolar <= 10000;
+    const validNodes = getOriginNodes().includes(origen) && getAllDestinationNodes().includes(destino);
+
+    if (!origen || !destino || !validPercentage || !validDolar || !validNodes || origen === destino) {
+        showAlert('Los parámetros de la URL no son válidos. Seleccione una ruta para calcular.', 'warning');
+        return;
+    }
+
+    document.getElementById('origen').value = origen;
+    handleOriginChange();
+    document.getElementById('destino').value = destino;
+    document.getElementById('porcentaje').value = String(porcentaje);
+    document.getElementById('dolar').value = String(dolar);
+    trmManualOverride = true;
+    trmAutomaticReady = false;
+    setTrmStatus('TRM manual sobrescrita para este cálculo.', 'manual');
+    document.getElementById('calculatorForm').requestSubmit();
+}
+
+async function calculateRoute(origen, destino, porcentaje = 100, dolar = 4000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let response;
     try {
-        // Encontrar ruta usando BFS (Breadth-First Search)
-        const path = findShortestPath(origen, destino);
-
-        if (!path || path.length === 0) {
-            return {
-                success: false,
-                error: `No existe ruta entre ${origen} y ${destino}`
-            };
-        }
-
-        // Calcular costos de la ruta
-        const routeDetails = calculateRouteCosts(path, porcentaje, dolar);
-
-        return {
-            success: true,
-            origen: origen,
-            destino: destino,
-            porcentaje: porcentaje,
-            dolar: dolar,
-            path: path,
-            ...routeDetails
-        };
-
-    } catch (error) {
-        console.error('Error calculando ruta:', error);
-        return {
-            success: false,
-            error: 'Error interno en el cálculo de ruta'
-        };
-    }
-}
-
-// Encontrar la ruta más corta usando BFS (ALGORITMO ORIGINAL)
-function findShortestPath(start, end) {
-    console.log(`🔍 Buscando ruta: ${start} → ${end}`);
-
-    if (start === end) {
-        return [start];
-    }
-
-    // Construir grafo de conexiones bidireccional como el original
-    const graph = new Map();
-
-    // Agregar todas las conexiones desde los datos
-    NETWORK_DATA.forEach(item => {
-        if (item.Origen === 'Estampilla') return;
-
-        const origen = item.Origen;
-        const destino = item.Destino;
-
-        // Conexión directa (A → B)
-        if (!graph.has(origen)) graph.set(origen, []);
-        graph.get(origen).push(destino);
-
-        // Conexión inversa (B → A) - como NetworkX hace automáticamente
-        if (!graph.has(destino)) graph.set(destino, []);
-        graph.get(destino).push(origen);
-    });
-
-    console.log(`🌐 Grafo construido con ${graph.size} nodos`);
-    if (graph.has(start)) {
-        console.log(`🔗 Conexiones desde '${start}':`, graph.get(start));
-    }
-
-    // BFS para encontrar el camino más corto
-    const queue = [[start]];
-    const visited = new Set();
-
-    while (queue.length > 0) {
-        const path = queue.shift();
-        const current = path[path.length - 1];
-
-        if (current === end) {
-            console.log(`✅ Ruta encontrada:`, path);
-            return path;
-        }
-
-        if (visited.has(current)) {
-            continue;
-        }
-
-        visited.add(current);
-
-        // Obtener conexiones del nodo actual
-        const connections = graph.get(current) || [];
-
-        for (const neighbor of connections) {
-            if (!visited.has(neighbor)) {
-                queue.push([...path, neighbor]);
-            }
-        }
-    }
-
-    console.log(`❌ No se encontró ruta entre ${start} y ${end}`);
-    return null;
-}
-
-// Calcular costos de la ruta
-function calculateRouteCosts(path, porcentaje, dolar) {
-    const detalles = [];
-    const transportadores = new Set();
-
-    // Calcular costos por segmento (LÓGICA ORIGINAL)
-    for (let i = 0; i < path.length - 1; i++) {
-        const origen = path[i];
-        const destino = path[i + 1];
-
-        // Buscar segmento en ambas direcciones (como el grafo bidireccional)
-        let segment = NETWORK_DATA.find(item =>
-            item.Origen === origen && item.Destino === destino
-        );
-
-        // Si no se encuentra en dirección directa, buscar en dirección inversa
-        if (!segment) {
-            segment = NETWORK_DATA.find(item =>
-                item.Origen === destino && item.Destino === origen
-            );
-        }
-
-        if (!segment) {
-            throw new Error(`Segmento no encontrado: ${origen} ↔ ${destino}`);
-        }
-
-        // Cálculo EXACTO como en la versión original
-        const pct = porcentaje / 100.0;
-        const fijosVal = parseFloat(segment.Fijos) * pct;
-        const variablesVal = parseFloat(segment.Variables) * (1 - pct);  // COMPLEMENTO del porcentaje
-        const aomVal = parseFloat(segment.AOM);  // AOM no se multiplica por porcentaje
-        const totalTramo = fijosVal + variablesVal + aomVal;
-
-        transportadores.add(segment.Transportador);
-
-        detalles.push({
-            Tramo: segment.Tramo || `${origen} - ${destino}`,
-            Transportador: segment.Transportador,
-            Fijos: fijosVal.toFixed(2),
-            Variables: variablesVal.toFixed(2),
-            AOM: aomVal.toFixed(2),
-            'Total Tramo': totalTramo.toFixed(2),
-            Distancia: ''
+        response = await fetch(window.API_BASE_URL + '/calcular', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ origen, destino, porcentaje, dolar }),
+            signal: controller.signal,
         });
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            const e = new Error('Timeout');
+            e.serviceUnavailable = true;
+            throw e;
+        }
+        const e = new Error('Network error');
+        e.serviceUnavailable = true;
+        throw e;
+    } finally {
+        clearTimeout(timeoutId);
     }
 
-    // Aplicar estampillas por transportador (LÓGICA ORIGINAL)
-    transportadores.forEach(transportador => {
-        const estampilla = ESTAMPILLAS[transportador];
-        if (estampilla) {
-            const pctDecimal = porcentaje / 100.0;
-            const fijosVal = parseFloat(estampilla.Fijos) * pctDecimal;
-            const variablesVal = parseFloat(estampilla.Variables) * (1 - pctDecimal); // COMPLEMENTO
-            const aomVal = parseFloat(estampilla.AOM);
-            const totalVal = fijosVal + variablesVal + aomVal;
+    if (response.status >= 500) {
+        const e = new Error(`HTTP ${response.status}`);
+        e.serviceUnavailable = true;
+        throw e;
+    }
 
-            detalles.push({
-                Tramo: `Estampilla ${transportador}`,
-                Transportador: transportador,
-                Fijos: fijosVal.toFixed(2),
-                Variables: variablesVal.toFixed(2),
-                AOM: aomVal.toFixed(2),
-                'Total Tramo': totalVal.toFixed(2),
-                Distancia: ''
-            });
-        }
-    });
+    const apiResp = await response.json();
 
-    // Calcular subtotales (LÓGICA ORIGINAL)
-    const subtotalFijos = detalles.reduce((sum, d) => sum + parseFloat(d.Fijos), 0);
-    const subtotalVariables = detalles.reduce((sum, d) => sum + parseFloat(d.Variables), 0);
-    const subtotalAOM = detalles.reduce((sum, d) => sum + parseFloat(d.AOM), 0);
-    const subtotalGeneral = detalles.reduce((sum, d) => sum + parseFloat(d['Total Tramo']), 0);
+    if (!response.ok) {
+        throw new Error(apiResp.error || 'No se pudo calcular la ruta');
+    }
 
-    const subtotales = {
-        Tramo: 'SUB TOTALES (COP)',
-        Transportador: '',
-        Fijos: subtotalFijos.toFixed(2),
-        Variables: subtotalVariables.toFixed(2),
-        AOM: subtotalAOM.toFixed(2),
-        'Total Tramo': subtotalGeneral.toFixed(2),
-        Distancia: ''
-    };
-
-    // Calcular fomento (3%) - LÓGICA ORIGINAL
-    const fomentoFijos = subtotalFijos * 0.03;
-    const fomentoVariables = subtotalVariables * 0.03;
-    const fomentoAOM = subtotalAOM * 0.03;
-    const fomentoGeneral = subtotalGeneral * 0.03;
-
-    const fomento = {
-        Tramo: 'Cuota de fomento',
-        Transportador: '',
-        Fijos: fomentoFijos.toFixed(2),
-        Variables: fomentoVariables.toFixed(2),
-        AOM: fomentoAOM.toFixed(2),
-        'Total Tramo': fomentoGeneral.toFixed(2),
-        Distancia: ''
-    };
-
-    // Calcular impuesto (6%) - LÓGICA ORIGINAL
-    const impuestoFijos = subtotalFijos * 0.06;
-    const impuestoVariables = subtotalVariables * 0.06;
-    const impuestoAOM = subtotalAOM * 0.06;
-    const impuestoGeneral = subtotalGeneral * 0.06;
-
-    const impuesto = {
-        Tramo: 'Impuesto transporte',
-        Transportador: '',
-        Fijos: impuestoFijos.toFixed(2),
-        Variables: impuestoVariables.toFixed(2),
-        AOM: impuestoAOM.toFixed(2),
-        'Total Tramo': impuestoGeneral.toFixed(2),
-        Distancia: ''
-    };
-
-    // Calcular totales - LÓGICA ORIGINAL
-    const totalFijos = subtotalFijos + fomentoFijos + impuestoFijos;
-    const totalVariables = subtotalVariables + fomentoVariables + impuestoVariables;
-    const totalAOM = subtotalAOM + fomentoAOM + impuestoAOM;
-    const totalGeneral = subtotalGeneral + fomentoGeneral + impuestoGeneral;
-
-    const totales = {
-        Tramo: 'TOTALES (COP)',
-        Transportador: '',
-        Fijos: totalFijos.toFixed(2),
-        Variables: totalVariables.toFixed(2),
-        AOM: totalAOM.toFixed(2),
-        'Total Tramo': totalGeneral.toFixed(2),
-        Distancia: ''
-    };
-
-    // Convertir a USD - LÓGICA ORIGINAL
-    const totalFijosUsd = totalFijos / dolar;
-    const totalVariablesUsd = totalVariables / dolar;
-    const totalAOMUsd = totalAOM / dolar;
-    const totalGeneralUsd = totalGeneral / dolar;
-
-    const usdTotales = {
-        Tramo: 'USD',
-        Transportador: '',
-        Fijos: totalFijosUsd.toFixed(2),
-        Variables: totalVariablesUsd.toFixed(2),
-        AOM: totalAOMUsd.toFixed(2),
-        'Total Tramo': totalGeneralUsd.toFixed(2),
-        Distancia: ''
-    };
-
-    // Agregar líneas de resumen
-    detalles.push(subtotales, fomento, impuesto, totales, usdTotales);
+    // ponytail: path reconstructed from detalle Tramo "A - B" lines; backend doesn't return path directly
+    const path = [];
+    for (const d of apiResp.detalles) {
+        if (!d.Tramo.includes(' - ')) continue;
+        const parts = d.Tramo.split(' - ');
+        if (path.length === 0) path.push(parts[0]);
+        path.push(parts[1]);
+    }
 
     return {
-        detalles: detalles,
-        transportadores: Array.from(transportadores),
-        origen: path[0],
-        destino: path[path.length - 1],
-        path: path,
-        porcentaje: porcentaje,
-        dolar: dolar,
-        totales: {
-            cop: totalGeneral,
-            usd: totalGeneralUsd
-        },
-        estadisticas: {
-            segmentos: path.length - 1,
-            transportadores: transportadores.size
-        }
+        success: true,
+        origen,
+        destino,
+        porcentaje,
+        dolar,
+        path,
+        detalles: apiResp.detalles,
+        transportadores: apiResp.transportadores,
+        totales: apiResp.totales,
+        estadisticas: apiResp.estadisticas,
     };
+}
+
+function initializeExportActions() {
+    document.querySelector('[data-export="pdf"]')?.addEventListener('click', exportPdf);
+    document.querySelector('[data-export="excel"]')?.addEventListener('click', exportExcel);
+}
+
+function setExportEnabled(enabled) {
+    document.querySelectorAll('[data-export]').forEach(button => {
+        button.disabled = !enabled;
+    });
+}
+
+function exportRows(result) {
+    return result.detalles.map(detail => [
+        detail.Tramo,
+        detail.Transportador,
+        Number(detail.Fijos).toFixed(2),
+        Number(detail.Variables).toFixed(2),
+        Number(detail.AOM).toFixed(2),
+        Number(detail['Total Tramo']).toFixed(2),
+    ]);
+}
+
+function exportSubtotals(result) {
+    const totals = new Map();
+    result.detalles.forEach(detail => {
+        totals.set(detail.Transportador, (totals.get(detail.Transportador) || 0) + Number(detail['Total Tramo']));
+    });
+    return [...totals].map(([name, total]) => [`Subtotal ${name}`, total.toFixed(2)]);
+}
+
+function exportFilename(extension) {
+    const date = new Date().toLocaleDateString('en-CA');
+    return `${currentRoute.origen}-${currentRoute.destino}-${date}.${extension}`;
+}
+
+function exportPdf() {
+    if (!currentRoute || !window.jspdf?.jsPDF) return;
+    const { jsPDF } = window.jspdf;
+    const result = currentRoute;
+    const pdf = new jsPDF();
+    const lines = [
+        'Calculadora GEAM',
+        `Origen: ${result.origen}`,
+        `Destino: ${result.destino}`,
+        `Porcentaje: ${result.porcentaje}`,
+        `TRM: ${result.dolar}`,
+        `Total COP: ${Number(result.totales.cop).toFixed(2)}`,
+        `Total USD: ${Number(result.totales.usd).toFixed(2)}`,
+        '',
+        'Tramo | Transportador | Fijos | Variables | AOM | Total Tramo',
+        ...exportRows(result).map(row => row.join(' | ')),
+        '',
+        'Subtotales por transportador',
+        ...exportSubtotals(result).map(row => `${row[0]}: ${row[1]}`),
+    ];
+    pdf.text(lines, 14, 18);
+    pdf.save(exportFilename('pdf'));
+}
+
+function exportExcel() {
+    if (!currentRoute || !window.XLSX) return;
+    const result = currentRoute;
+    const rows = [
+        ['Calculadora GEAM', ''],
+        ['Origen', result.origen],
+        ['Destino', result.destino],
+        ['Porcentaje', result.porcentaje],
+        ['TRM', result.dolar],
+        ['Total COP', Number(result.totales.cop)],
+        ['Total USD', Number(result.totales.usd)],
+        [],
+        ['Subtotales por transportador', ''],
+        ...exportSubtotals(result),
+        [],
+        ['Tramo', 'Transportador', 'Fijos', 'Variables', 'AOM', 'Total Tramo'],
+        ...exportRows(result),
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Calculo');
+    XLSX.writeFile(workbook, exportFilename('xlsx'));
 }
 
 // Mostrar resultados
-function displayResults(result) {
+function displayResults(result, routeNumber = 1) {
     const resultsCard = document.getElementById('resultsCard');
-    const resultsContent = document.getElementById('resultsContent');
+    const columns = document.querySelector('.comparison-columns');
+    let column = columns.querySelector(`[data-route-column="${routeNumber}"]`);
+    if (!column) {
+        column = el('article', 'comparison-column');
+        column.dataset.routeColumn = routeNumber;
+        columns.appendChild(column);
+    }
+    column.textContent = '';
 
-    let html = `
-        <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="mb-0">
-                    <i class="fas fa-route me-2"></i>${result.origen} → ${result.destino}
-                </h6>
-                <small class="text-muted">${result.porcentaje}% | TRM: $${result.dolar.toLocaleString()}</small>
-            </div>
-        </div>
-        
-        <!-- Resumen Principal -->
-        <div class="row g-2 mb-3">
-            <div class="col-6">
-                <div class="result-item text-center">
-                    <div class="result-label">Total COP</div>
-                    <div class="result-value">$${parseFloat(result.totales.cop).toLocaleString('es-CO', { maximumFractionDigits: 2 })}</div>
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="result-item text-center">
-                    <div class="result-label">Total USD</div>
-                    <div class="result-value">$${parseFloat(result.totales.usd).toLocaleString('en-US', { maximumFractionDigits: 2 })}</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Estadísticas -->
-        <div class="row g-2 mb-3">
-            <div class="col-4">
-                <small class="text-muted">Segmentos</small><br>
-                <strong>${result.estadisticas.segmentos}</strong>
-            </div>
-            <div class="col-4">
-                <small class="text-muted">Transportadores</small><br>
-                <strong>${result.estadisticas.transportadores}</strong>
-            </div>
-            <div class="col-4">
-                <small class="text-muted">Ruta</small><br>
-                <strong>${result.path.length - 1} tramos</strong>
-            </div>
-        </div>
-        
-        <!-- Transportadores -->
-        <div class="mb-3">
-            <small class="text-muted d-block mb-1">Transportadores:</small>
-            ${result.transportadores.map(t =>
-        `<span class="badge" style="background-color: ${TRANSPORTADOR_COLORS[t]}; color: ${t === 'PROMIORIENTE' ? 'black' : 'white'};">${t}</span>`
-    ).join(' ')}
-        </div>
-        
-        <!-- Desglose -->
-        <div class="accordion accordion-flush" id="detailsAccordion">
-            <div class="accordion-item">
-                <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detailsCollapse">
-                        <i class="fas fa-list me-2"></i>Ver Desglose Detallado
-                    </button>
-                </h2>
-                <div id="detailsCollapse" class="accordion-collapse collapse" data-bs-parent="#detailsAccordion">
-                    <div class="accordion-body p-2">
-                        ${generateDetailedBreakdown(result)}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    const routeHeader = el('div', 'mb-3');
+    const headerFlex = el('div', 'd-flex justify-content-between align-items-center mb-2');
+    const h6 = document.createElement('h6');
+    h6.className = 'mb-0 route-title';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-route me-2';
+    h6.appendChild(icon);
+    h6.appendChild(document.createTextNode(`${result.origen} → ${result.destino}`));
+    const headerSmall = document.createElement('small');
+    headerSmall.className = 'text-muted cifra';
+    headerSmall.textContent = `${result.porcentaje}% | TRM: $${result.dolar.toLocaleString()}`;
+    headerFlex.appendChild(h6);
+    headerFlex.appendChild(headerSmall);
+    routeHeader.appendChild(headerFlex);
+    column.appendChild(routeHeader);
 
-    resultsContent.innerHTML = html;
+    const resumenRow = el('div', 'row g-2 mb-3');
+    resumenRow.appendChild(makeResultItem('Total COP', `$${parseFloat(result.totales.cop).toLocaleString('es-CO', { maximumFractionDigits: 2 })}`));
+    resumenRow.appendChild(makeResultItem('Total USD', `$${parseFloat(result.totales.usd).toLocaleString('en-US', { maximumFractionDigits: 2 })}`));
+    column.appendChild(resumenRow);
+
+    column.appendChild(makeTransportSummary(result));
+
+    const statsRow = el('div', 'row g-2 mb-3');
+    statsRow.appendChild(makeStat('Segmentos', `${result.estadisticas.segmentos}`));
+    statsRow.appendChild(makeStat('Transportadores', `${result.estadisticas.transportadores}`));
+    statsRow.appendChild(makeStat('Ruta', `${result.path.length - 1} tramos`));
+    column.appendChild(statsRow);
+
+    const transpDiv = el('div', 'mb-3 transportador-badges');
+    const transpLabel = document.createElement('small');
+    transpLabel.className = 'text-muted d-block mb-1';
+    transpLabel.textContent = 'Transportadores:';
+    transpDiv.appendChild(transpLabel);
+    result.transportadores.forEach(t => {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        const color = TRANSPORTADOR_COLORS[t] || '#666666';
+        badge.style.backgroundColor = color;
+        badge.style.color = (t === 'PROMIORIENTE') ? 'black' : 'white';
+        badge.textContent = t;
+        transpDiv.appendChild(badge);
+        transpDiv.appendChild(document.createTextNode(' '));
+    });
+    column.appendChild(transpDiv);
+
+    column.appendChild(generateDetailedBreakdown(result));
+    setExportEnabled(true);
+
+    createSheetHandle();
     resultsCard.style.display = 'block';
+    updateRouteDifferences();
     resultsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Generar desglose detallado
-function generateDetailedBreakdown(result) {
-    let html = `
-        <!-- Desglose Completo -->
-        <h6 class="mb-2"><i class="fas fa-table me-1"></i>Desglose Completo</h6>
-        <div class="table-responsive">
-            <table class="table table-sm table-striped">
-                <thead>
-                    <tr>
-                        <th>Concepto</th>
-                        <th>Transportador</th>
-                        <th>Fijos</th>
-                        <th>Variables</th>
-                        <th>AOM</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+function initializeComparisonToggle() {
+    document.querySelectorAll('[data-show-route]').forEach(button => button.addEventListener('click', () => {
+        const route = button.dataset.showRoute;
+        document.querySelectorAll('[data-show-route]').forEach(item => item.classList.toggle('active', item === button));
+        document.querySelectorAll('.comparison-column').forEach(column => {
+            column.classList.toggle('comparison-column--active', column.dataset.routeColumn === route);
+        });
+    }));
+}
 
-    // Mostrar todos los detalles de la estructura original
-    result.detalles.forEach(detalle => {
-        const isSubtotal = detalle.Tramo.includes('SUB TOTALES');
-        const isFomento = detalle.Tramo.includes('fomento');
-        const isImpuesto = detalle.Tramo.includes('Impuesto');
-        const isTotal = detalle.Tramo.includes('TOTALES');
-        const isUSD = detalle.Tramo === 'USD';
-
-        let rowClass = '';
-        if (isSubtotal) rowClass = 'table-warning';
-        else if (isFomento || isImpuesto) rowClass = 'table-info';
-        else if (isTotal) rowClass = 'table-success';
-        else if (isUSD) rowClass = 'table-primary';
-
-        html += `
-            <tr class="${rowClass}">
-                <td${isSubtotal || isTotal || isUSD ? ' style="font-weight: bold;"' : ''}>${detalle.Tramo}</td>
-                <td>`;
-
-        if (detalle.Transportador && detalle.Transportador !== '') {
-            html += `<span class="badge" style="background-color: ${TRANSPORTADOR_COLORS[detalle.Transportador]}; color: ${detalle.Transportador === 'PROMIORIENTE' ? 'black' : 'white'}; font-size: 0.7rem;">${detalle.Transportador}</span>`;
+function transportTotals(result) {
+    const totals = new Map();
+    result.detalles.forEach(detail => {
+        if (detail.Transportador && !detail.Tramo.startsWith('Estampilla')) {
+            totals.set(detail.Transportador, (totals.get(detail.Transportador) || 0) + Number(detail['Total Tramo']));
         }
-
-        const prefix = isUSD ? '$' : '$';
-        const locale = isUSD ? 'en-US' : 'es-CO';
-
-        html += `</td>
-                <td${isSubtotal || isTotal || isUSD ? ' style="font-weight: bold;"' : ''}>${prefix}${parseFloat(detalle.Fijos).toLocaleString(locale, { maximumFractionDigits: 2 })}</td>
-                <td${isSubtotal || isTotal || isUSD ? ' style="font-weight: bold;"' : ''}>${prefix}${parseFloat(detalle.Variables).toLocaleString(locale, { maximumFractionDigits: 2 })}</td>
-                <td${isSubtotal || isTotal || isUSD ? ' style="font-weight: bold;"' : ''}>${prefix}${parseFloat(detalle.AOM).toLocaleString(locale, { maximumFractionDigits: 2 })}</td>
-                <td${isSubtotal || isTotal || isUSD ? ' style="font-weight: bold;"' : ''}>${prefix}${parseFloat(detalle['Total Tramo']).toLocaleString(locale, { maximumFractionDigits: 2 })}</td>
-            </tr>
-        `;
     });
+    return totals;
+}
 
-    html += `
-                </tbody>
-            </table>
-        </div>
-    `;
+function updateRouteDifferences() {
+    const [first, second] = comparisonRoutes;
+    const wrap = document.querySelector('.route-differences');
+    if (!first || !second) { wrap.textContent = ''; return; }
+    wrap.textContent = '';
+    const heading = el('h3', 'comparison-title');
+    heading.textContent = 'Diferencias entre rutas';
+    wrap.appendChild(heading);
+    const table = el('div', 'comparison-difference-list');
+    [['Total', Number(second.totales.cop) - Number(first.totales.cop), Number(second.totales.usd) - Number(first.totales.usd)], ...new Set([...transportTotals(first).keys(), ...transportTotals(second).keys()])].forEach(entry => {
+        const row = el('div', 'comparison-difference-row');
+        const name = Array.isArray(entry) ? entry[0] : entry;
+        const cop = Array.isArray(entry) ? entry[1] : (transportTotals(second).get(name) || 0) - (transportTotals(first).get(name) || 0);
+        const usd = Array.isArray(entry) ? entry[2] : ((transportTotals(second).get(name) || 0) / Number(second.dolar)) - ((transportTotals(first).get(name) || 0) / Number(first.dolar));
+        const firstShare = name === 'Total' ? 100 : ((transportTotals(first).get(name) || 0) / Number(first.totales.cop)) * 100;
+        const secondShare = name === 'Total' ? 100 : ((transportTotals(second).get(name) || 0) / Number(second.totales.cop)) * 100;
+        row.textContent = `${name}: COP ${formatCop(cop)} · USD ${Number(usd).toLocaleString('en-US', { maximumFractionDigits: 2 })} · porcentaje ${(secondShare - firstShare).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`;
+        table.appendChild(row);
+    });
+    wrap.appendChild(table);
+}
 
-    return html;
+let sheetHandleCreated = false;
+
+function initializeResultsSheet() {
+    const toggle = document.querySelector('.sheet-toggle');
+    const center = document.querySelector('.centro');
+    if (!toggle || !center) return;
+
+    toggle.addEventListener('click', () => {
+        const open = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!open));
+        center.classList.toggle('sheet-closed', open);
+    });
+}
+
+function createSheetHandle() {
+    if (sheetHandleCreated) return;
+    sheetHandleCreated = true;
+    const toggle = document.querySelector('.sheet-toggle');
+    const center = document.querySelector('.centro');
+    if (!toggle || !center) return;
+
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'sheet-handle';
+    handle.setAttribute('aria-label', 'Arrastrar hoja de resultados');
+    handle.innerHTML = '<span aria-hidden="true"></span>';
+    document.getElementById('resultsCard').prepend(handle);
+
+    let startY = 0;
+    let dragging = false;
+    handle.addEventListener('pointerdown', event => {
+        dragging = true;
+        startY = event.clientY;
+        handle.setPointerCapture(event.pointerId);
+    });
+    handle.addEventListener('pointermove', event => {
+        if (!dragging || Math.abs(event.clientY - startY) < 24) return;
+        const open = event.clientY < startY;
+        toggle.setAttribute('aria-expanded', String(open));
+        center.classList.toggle('sheet-closed', !open);
+        dragging = false;
+    });
+    handle.addEventListener('pointerup', () => { dragging = false; });
+    handle.addEventListener('pointercancel', () => { dragging = false; });
+}
+
+function el(tag, className) {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    return e;
+}
+
+function makeResultItem(label, value) {
+    const col = el('div', 'col-6');
+    const item = el('div', `result-item text-center ${label === 'Total COP' ? 'total-cop' : ''}`);
+    const lbl = el('div', 'result-label');
+    lbl.textContent = label;
+    const val = el('div', 'result-value');
+    val.textContent = value;
+    item.appendChild(lbl);
+    item.appendChild(val);
+    col.appendChild(item);
+    return col;
+}
+
+function makeStat(label, value) {
+    const col = el('div', 'col-4');
+    const s = document.createElement('small');
+    s.className = 'text-muted';
+    s.textContent = label;
+    col.appendChild(s);
+    col.appendChild(document.createElement('br'));
+    const strong = document.createElement('strong');
+    strong.className = 'cifra stats-number';
+    strong.textContent = value;
+    col.appendChild(strong);
+    return col;
+}
+
+function formatCop(value) {
+    return `$${Number(value).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function makeTransportSummary(result) {
+    const wrap = el('section', 'transport-summary');
+    wrap.setAttribute('aria-label', 'Reparto por transportador');
+    const totals = new Map();
+    result.detalles.forEach(detail => {
+        if (detail.Transportador && !detail.Tramo.startsWith('Estampilla')) totals.set(detail.Transportador, (totals.get(detail.Transportador) || 0) + Number(detail['Total Tramo']));
+    });
+    const total = Number(result.totales.cop);
+    const promigas = totals.get('PROMIGAS') || 0;
+    const conexion = totals.get('Conexión Especial') || 0;
+    const entries = [['PROMIGAS', promigas], ['Conexión Especial', conexion], ['TGI', total - promigas - conexion]];
+    const bar = el('div', 'reparto');
+    entries.forEach(([name, amount]) => {
+        const segment = el('span', 'reparto-segment');
+        segment.dataset.transportador = name;
+        segment.style.width = `${total ? (amount / total) * 100 : 0}%`;
+        bar.appendChild(segment);
+    });
+    wrap.appendChild(bar);
+    const legend = el('div', 'reparto__llave');
+    entries.forEach(([name, amount]) => {
+        const item = el('span', 'reparto__item');
+        item.dataset.transportadorSummary = name;
+        const nameEl = document.createElement('span');
+        nameEl.textContent = name + ' ';
+        const amountEl = document.createElement('span');
+        amountEl.className = 'cifra';
+        amountEl.textContent = formatCop(amount);
+        const percentEl = document.createElement('span');
+        percentEl.className = 'cifra';
+        percentEl.textContent = ` · ${total ? (amount / total * 100).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0'}%`;
+        item.append(nameEl, amountEl, percentEl);
+        legend.appendChild(item);
+    });
+    wrap.appendChild(legend);
+    return wrap;
+}
+
+// Generar desglose agrupado, conservando los valores entregados por la API.
+function generateDetailedBreakdown(result) {
+    const wrap = el('section', 'desglose');
+    const heading = document.createElement('h3');
+    heading.className = 'desglose-title';
+    heading.textContent = 'Desglose por transportador';
+    wrap.appendChild(heading);
+    const groups = new Map();
+    result.detalles.forEach(detail => {
+        if (!detail.Transportador) return;
+        if (!groups.has(detail.Transportador)) groups.set(detail.Transportador, []);
+        groups.get(detail.Transportador).push(detail);
+    });
+    ['PROMIGAS', 'Conexión Especial', 'TGI', 'PROMIORIENTE'].forEach(name => {
+        if (!groups.has(name) && name !== 'Conexión Especial') return;
+        const details = groups.get(name) || [];
+        const group = el('div', 'transportador-group');
+        group.dataset.transportador = name;
+        const disclosure = document.createElement('details');
+        disclosure.open = [...wrap.querySelectorAll('details')].length === 0;
+        const summary = document.createElement('summary');
+        summary.className = 'desglose__cabecera';
+        summary.textContent = name;
+        const subtotal = details.reduce((sum, detail) => sum + Number(detail['Total Tramo']), 0);
+        const subtotalEl = el('span', 'group-subtotal');
+        subtotalEl.textContent = formatCop(subtotal);
+        summary.appendChild(subtotalEl);
+        disclosure.appendChild(summary);
+        const body = el('div', 'desglose__grupo');
+        details.forEach(detail => {
+            const row = el('div', 'desglose__fila');
+            const tramoParts = detail.Tramo.includes(' - ') ? detail.Tramo.split(' - ') : [];
+            if (tramoParts.length === 2) {
+                row.tabIndex = 0;
+                row.dataset.routeFrom = tramoParts[0];
+                row.dataset.routeTo = tramoParts[1];
+                row.dataset.routeValue = formatCop(detail['Total Tramo']);
+            }
+            [['Tramo', detail.Tramo], ['Transportador', detail.Transportador], ['Fijos', formatCop(detail.Fijos)], ['Variables', formatCop(detail.Variables)], ['AOM', formatCop(detail.AOM)], ['Total', formatCop(detail['Total Tramo'])]].forEach(([label, value]) => {
+                const cell = el('span', label === 'Tramo' ? 'desglose__tramo' : 'desglose__num');
+                cell.dataset.label = label;
+                cell.textContent = value;
+                row.appendChild(cell);
+            });
+            const secondary = el('span', 'desglose__detalle');
+            secondary.textContent = `Fijos: ${formatCop(detail.Fijos)} · AOM: ${formatCop(detail.AOM)}`;
+            row.appendChild(secondary);
+            body.appendChild(row);
+        });
+        disclosure.appendChild(body);
+        group.appendChild(disclosure);
+        wrap.appendChild(group);
+    });
+    return wrap;
 }
 
 // Establecer ruta predefinida
@@ -597,29 +778,58 @@ function handlePredefinedRoute() {
 
     // Resetear el select
     select.value = '';
-}// Mostrar/ocultar loading
+}
+function hideInitialState() {
+    const initial = document.getElementById('initialState');
+    if (initial) initial.hidden = true;
+}
+
+function showInitialState() {
+    const initial = document.getElementById('initialState');
+    if (initial) initial.hidden = false;
+}
+
 function showLoading(show) {
+    const resultsCard = document.getElementById('resultsCard');
+    const skeleton = document.getElementById('loadingSkeleton');
+    const toggle = resultsCard.querySelector('.comparison-toggle');
+    const columns = resultsCard.querySelector('.comparison-columns');
+    const diffs = resultsCard.querySelector('.route-differences');
+    const actions = resultsCard.querySelector('.export-actions');
     if (show) {
-        loadingModal.show();
+        hideInitialState();
+        resultsCard.style.display = 'block';
+        resultsCard.setAttribute('aria-busy', 'true');
+        skeleton.setAttribute('aria-hidden', 'false');
+        if (toggle) toggle.style.display = 'none';
+        if (columns) columns.style.display = 'none';
+        if (diffs) diffs.style.display = 'none';
+        if (actions) actions.style.visibility = 'hidden';
     } else {
-        loadingModal.hide();
+        resultsCard.setAttribute('aria-busy', 'false');
+        skeleton.setAttribute('aria-hidden', 'true');
+        if (toggle) toggle.style.display = '';
+        if (columns) columns.style.display = '';
+        if (diffs) diffs.style.display = '';
+        if (actions) actions.style.visibility = '';
     }
 }
 
 // Mostrar alerta
 function showAlert(message, type = 'info') {
-    // Crear elemento de alerta
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
     alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+    alertDiv.textContent = message;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.setAttribute('data-bs-dismiss', 'alert');
+    closeBtn.setAttribute('aria-label', 'Close');
+    alertDiv.appendChild(closeBtn);
 
     document.body.appendChild(alertDiv);
 
-    // Auto-remover después de 5 segundos
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.remove();
@@ -659,3 +869,4 @@ window.calculateRoute = calculateRoute;
 window.currentRoute = currentRoute;
 window.handleOriginChange = handleOriginChange;
 window.handlePredefinedRoute = handlePredefinedRoute;
+window.__trm = { normalizeTrm, isTrmFresh };
