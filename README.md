@@ -200,6 +200,45 @@ async function getTRMFromAPI() {
 }
 ```
 
+## Backend (Node.js + PostgreSQL)
+
+El backend requiere Docker y Docker Compose.
+
+### Variables de entorno
+
+Copia `.env.example` a `.env` y ajusta los valores:
+
+```
+POSTGRES_USER=geam
+POSTGRES_PASSWORD=<contrasena>
+POSTGRES_DB=geam
+POSTGRES_PORT=5433
+SESSION_SECRET=<secreto>
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=<contrasena>
+```
+
+### Comandos
+
+```bash
+# Levantar servicios
+docker compose up -d
+
+# Ejecutar migraciones y semilla
+docker compose exec -T backend npx prisma migrate deploy
+docker compose exec -T backend npx prisma db seed
+
+# Verificar estado
+docker compose ps
+
+# Backend en http://localhost:3000
+curl http://localhost:3000/api/nodos
+```
+
+## Frontend (estático)
+
+La interfaz web está en `index.html` y puede abrirse directamente o servirse desde cualquier servidor estático.
+
 ## 📄 Licencia
 
 Este es un proyecto derivado de la calculadora principal GEAM.

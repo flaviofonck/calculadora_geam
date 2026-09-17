@@ -1,0 +1,21 @@
+{
+  "$comentario": [
+    "Permisos versionados de este repositorio. NO es settings.local.json, que es personal.",
+    "Precedencia: deny gana sobre ask, y ask gana sobre allow, incluido el allow del archivo",
+    "personal. Por eso git push y git commit se pueden pedir aquí sin editar el otro archivo.",
+    "Los scripts destructivos propios del proyecto se añaden a deny: su lista viva está en",
+    "candado.patronesPeligrosos del config del proyecto, en la instalación del orquestador."
+  ],
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/secrets/**)",
+      "Bash(rm -rf:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

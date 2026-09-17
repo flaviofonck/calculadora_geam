@@ -1,0 +1,179 @@
+{
+  "updated_at": "2026-09-17T23:41:27.000Z",
+  "$schema_note": "Estado por tarea. ESTA ES LA FUENTE: la tabla '## Resumen' de estado-implementacion.md es su proyección, nunca al revés. Estados válidos: no_iniciada, en_progreso, por_revision, completa.",
+  "fases": {
+    "fase_1": {
+      "bloques": {
+        "api-publica": {
+          "T-003": {
+            "nombre": "Endpoints públicos: topología, nodos, calcular, costo por tramo",
+            "estado": "completa"
+          }
+        },
+        "auth-admin": {
+          "T-006": {
+            "nombre": "Auditoría de cambios",
+            "estado": "completa"
+          },
+          "T-005": {
+            "nombre": "CRUD admin de nodos, tramos, transportadores, estampillas y parámetros",
+            "estado": "completa"
+          },
+          "T-004": {
+            "nombre": "Autenticación del panel admin",
+            "estado": "completa"
+          }
+        },
+        "cimientos": {
+          "T-001": {
+            "nombre": "Esquema Prisma, migración inicial y semilla de datos",
+            "estado": "completa"
+          },
+          "T-002": {
+            "nombre": "Servicio de rutas migrado (BFS + fórmulas tarifarias)",
+            "estado": "completa"
+          }
+        },
+        "despliegue": {
+          "T-007": {
+            "nombre": "Contenedores Docker y despliegue reproducible",
+            "estado": "completa"
+          }
+        }
+      }
+    },
+    "fase_2": {
+      "bloques": {
+        "verificacion": {
+          "T-012": {
+            "nombre": "Verificación de compatibilidad responsive y de mapa",
+            "estado": "completa"
+          }
+        },
+        "saneamiento": {
+          "T-011": {
+            "nombre": "Saneamiento de innerHTML en resultados",
+            "estado": "completa"
+          }
+        },
+        "consumo-api": {
+          "T-009": {
+            "nombre": "Frontend: calculator.js contra POST /api/calcular, sin fallback local",
+            "estado": "completa"
+          },
+          "T-010": {
+            "nombre": "Frontend: map.js contra topología y costo por tramo bajo demanda",
+            "estado": "completa"
+          },
+          "T-008": {
+            "nombre": "Frontend: config.js y data.js contra la API",
+            "estado": "completa"
+          }
+        }
+      }
+    },
+    "fase_3": {
+      "bloques": {
+        "layout": {
+          "T-013": {
+            "nombre": "Layout operativo con mapa siempre visible y hoja móvil",
+            "estado": "completa"
+          },
+          "T-021": {
+            "nombre": "Estado inicial orientativo en la columna de resultados",
+            "estado": "completa"
+          }
+        },
+        "visual": {
+          "T-014": {
+            "nombre": "Sistema visual instrumental, tipografía y accesibilidad base",
+            "estado": "completa"
+          }
+        },
+        "mapa": {
+          "T-015": {
+            "nombre": "Mapa animado y sincronizado con el desglose",
+            "estado": "completa"
+          }
+        },
+        "producto": {
+          "T-016": {
+            "nombre": "Exportación del desglose a PDF y Excel",
+            "estado": "completa"
+          },
+          "T-017": {
+            "nombre": "URL compartible que reproduce un cálculo",
+            "estado": "completa"
+          },
+          "T-018": {
+            "nombre": "TRM automática con fecha y sobrescritura manual",
+            "estado": "completa"
+          },
+          "T-019": {
+            "nombre": "Comparación de dos rutas lado a lado",
+            "estado": "completa"
+          },
+          "T-020": {
+            "nombre": "Estado de carga integrado con esqueleto",
+            "estado": "completa"
+          }
+        }
+      }
+    },
+    "fase_4": {
+      "bloques": {
+        "marcado": {
+          "T-022": {
+            "estado": "no_iniciada",
+            "nombre": "Marcado de index.html sobre la rejilla de la referencia"
+          },
+          "T-023": {
+            "estado": "no_iniciada",
+            "nombre": "Barra superior única, logotipo GEAM y retirada de Lite"
+          },
+          "T-024": {
+            "estado": "no_iniciada",
+            "nombre": "Controles del riel: capacidad, tasa de cambio e invertir trayecto"
+          },
+          "T-025": {
+            "estado": "no_iniciada",
+            "nombre": "Rutas frecuentes en lista y segunda ruta bajo demanda"
+          }
+        },
+        "mapa": {
+          "T-026": {
+            "estado": "no_iniciada",
+            "nombre": "Nodos, escala y cabecera del mapa"
+          },
+          "T-027": {
+            "estado": "no_iniciada",
+            "nombre": "Diagnóstico y reparación del movimiento de la ruta"
+          }
+        },
+        "admin": {
+          "T-028": {
+            "estado": "no_iniciada",
+            "nombre": "Pantalla de acceso al panel administrativo"
+          },
+          "T-029": {
+            "estado": "no_iniciada",
+            "nombre": "Tablas de administración de la red"
+          }
+        },
+        "producto": {
+          "T-030": {
+            "estado": "no_iniciada",
+            "nombre": "Vista general de tramos con capacidad recalculable"
+          }
+        },
+        "verificacion": {
+          "T-031": {
+            "estado": "no_iniciada",
+            "nombre": "Verificación visual y de accesibilidad de la fase"
+          }
+        }
+      }
+    }
+  },
+  "fase_actual": 4
+}

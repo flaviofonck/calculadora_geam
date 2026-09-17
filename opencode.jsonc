@@ -1,0 +1,49 @@
+{
+  // Espejo en opencode de lo que .claude/settings.json deniega en Claude Code.
+  // Hace falta porque cada archivo solo cubre su propio CLI, y el backend de
+  // cada papel es conmutable en caliente: sin el espejo, la protección cambia
+  // según con qué backend se despache, sin que nada lo diga.
+  //
+  // La lista viva de scripts destructivos del proyecto está en
+  // candado.patronesPeligrosos, en el config del proyecto.
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    // Sin esta línea, opencode deja `edit` en `ask`, y en headless `ask` es
+    // `deny` sin decirlo: no hay nadie al otro lado del prompt. Reescribir un
+    // archivo entero pasa por borrarlo y recrearlo, así que el agente se queda
+    // sin poder entregar su informe y el turno muere sin buzón. Pasó en el
+    // propio orquestador el 2026-08-15 — once rechazos en diez turnos antes de
+    // que alguien mirara el log en vez de la pantalla.
+    "edit": "allow",
+    "bash": {
+      "git *": "deny",
+      "rm -rf *": "deny",
+      // Infraestructura de OTRO proyecto. `external_directory` es una valla de
+      // ARCHIVOS: un contenedor y un puerto no son un directorio, y por ahi se
+      // colo el director de la Calculadora GEAM el 2026-09-04. Leyo con
+      // `docker inspect` las credenciales del contenedor de otro repositorio y
+      // creo su base de datos dentro de el, sin que nada se lo impidiera.
+      //
+      // `docker compose ...` sigue permitido a proposito: se resuelve contra el
+      // compose del propio proyecto, que si es suyo. Lo que se cierra es
+      // alcanzar por NOMBRE un contenedor ajeno, o hablar directo con un
+      // servidor de base de datos que no se levanto aqui.
+      //
+      // Son patrones sobre el texto del comando, no una carcel: una ruta
+      // absoluta o un envoltorio los rodea. Suben el precio del descuido, que
+      // es lo que fallo; no sustituyen a que cada proyecto tenga lo suyo.
+      "docker inspect *": "deny",
+      "*docker inspect *": "deny",
+      "docker exec *": "deny",
+      "*docker exec *": "deny",
+      "psql *": "deny",
+      "*psql.exe*": "deny",
+      "pg_dump *": "deny",
+      "pg_dumpall *": "deny",
+      "pg_restore *": "deny",
+      "*": "allow"
+    },
+    // La vuelta de un actor vive dentro del repositorio; fuera no hay nada suyo.
+    "external_directory": "deny"
+  }
+}
