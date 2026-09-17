@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.local
+**/*.test.ts
+**/*.spec.ts
+*.log
+.git
+.gitignore
+.vscode
+.idea
+coverage
+*.md
+backend/node_modules
+backend/dist
+docs
+.contramaestre

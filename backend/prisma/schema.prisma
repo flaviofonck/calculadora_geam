@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Nodo {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  lat       Float?
+  lon       Float?
+  creadoPor String   @default("seed")
+  creadoEn  DateTime @default(now())
+  tramosOrigen  Tramo[] @relation("TramoOrigen")
+  tramosDestino Tramo[] @relation("TramoDestino")
+}
+
+model Transportador {
+  id     String @id @default(cuid())
+  nombre String @unique
+  color  String
+  tramos Tramo[]
+  estampilla Estampilla?
+}
+
+model Tramo {
+  id              String   @id @default(cuid())
+  origenId        String
+  destinoId       String
+  origen          Nodo     @relation("TramoOrigen", fields: [origenId], references: [id])
+  destino         Nodo     @relation("TramoDestino", fields: [destinoId], references: [id])
+  transportadorId String
+  transportador   Transportador @relation(fields: [transportadorId], references: [id])
+  tipo            String
+  fijos           Float
+  variables       Float
+  aom             Float
+  vigenteDesde    DateTime @default(now())
+  actualizadoPor  String   @default("seed")
+  actualizadoEn   DateTime @updatedAt
+
+  @@unique([origenId, destinoId])
+}
+
+model Estampilla {
+  transportadorId String @id
+  transportador   Transportador @relation(fields: [transportadorId], references: [id])
+  fijos           Float
+  variables       Float
+  aom             Float
+  vigenteDesde    DateTime @default(now())
+  actualizadoPor  String   @default("seed")
+  actualizadoEn   DateTime @updatedAt
+}
+
+model ParametroTarifario {
+  clave           String   @id
+  valor           Float
+  vigenteDesde    DateTime @default(now())
+  actualizadoPor  String   @default("seed")
+  actualizadoEn   DateTime @updatedAt
+}
+
+model AdminUser {
+  id            String   @id @default(cuid())
+  correo        String   @unique
+  hashPassword  String
+  creadoEn      DateTime @default(now())
+}
+
+model IntentoLogin {
+  id            String   @id @default(cuid())
+  correo        String
+  intentadoEn   DateTime @default(now())
+  exitoso       Boolean
+
+  @@index([correo, intentadoEn])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entidad     String
+  entidadId   String
+  accion      String
+  valorAntes  Json?
+  valorDespues Json?
+  hechoPor    String
+  hechoEn     DateTime @default(now())
+
+  @@index([entidad, hechoEn])
+}
