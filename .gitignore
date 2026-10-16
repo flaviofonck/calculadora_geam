@@ -4,3 +4,10 @@ dist/
 *.log
 .contramaestre/
 test-results/
+# Respaldos de la base y paquetes de despliegue: traen datos reales
+backups/
+despliegue/paquete/
+
+# Syncthing: copias viejas y copias de conflicto entre equipos; no son del repo.
+.stversions/
+*.sync-conflict-*
